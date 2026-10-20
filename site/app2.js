@@ -208,6 +208,63 @@
     document.querySelectorAll('[data-swa]').forEach(b => b.onclick = () => { go('mkt'); $('#anaQ').value = b.dataset.swa; analyse(b.dataset.swa); });
   }
 
+  /* ---------- Méthode : un guide par usage, choisi dans un menu ---------- */
+  const HOW = {
+    crypto: { t: 'Trading crypto en journalier', tab: 'home', tabL: 'Aujourd’hui' },
+    ana: { t: 'Analyser un actif', tab: 'mkt', tabL: 'Analyser', steps: [
+      ['Tape le symbole', 'Dans l’onglet Analyser : un symbole crypto Binance (SOL, NEAR…) ou une action suivie (NVDA, ASML…). Les suggestions s’affichent pendant la frappe.'],
+      ['Lis le verdict en couleur', 'Vert : achat possible selon la méthode. Orange : pas encore, ou marché défavorable. Rouge : exclue (memecoin, prêt, dérivés) ou tendance baissière.'],
+      ['Regarde les niveaux', 'Entrée (ou « entrée si cassure »), SL, TP suiveur, montant conseillé et renforts. La ligne orange du graphique est le seuil à franchir, la rouge le stop.'],
+      ['Décide', 'Achat possible : bouton « Trade papier » ou « J’ai acheté ». Sinon : « Ajouter à ma surveillance » et tu la retrouves dans l’onglet Portefeuille.']],
+      note: 'L’analyse applique les mêmes règles que le scan de la nuit, sur la dernière clôture journalière. Une crypto peu liquide (moins de 5 M$ échangés par jour) n’est jamais « achat possible ».' },
+    swing: { t: 'Actions : swing court terme', tab: 'stk', tabL: 'Actions', steps: [
+      ['Marché favorable', 'Le S&P 500 (ou le STOXX 600 pour l’Europe) au-dessus de sa moyenne 200 jours, et sa moyenne 50 jours au-dessus de la 200. Sinon, on ne fait rien.'],
+      ['Setup 1 : cassure', 'Clôture au-dessus du plus haut des 20 séances, volume au moins 1,5 fois la moyenne, RSI sous 75, action en tendance haussière.'],
+      ['Setup 2 : repli puis rebond', 'Action en tendance haussière, RSI passé sous 40 dans les 5 dernières séances, puis une clôture au-dessus du plus haut de la veille.'],
+      ['Achat à l’ouverture suivante', 'Stop posé tout de suite au niveau SL affiché. Cassure : objectif à 3 fois le risque. Repli : stop suiveur à 3 fois la variation moyenne.'],
+      ['Taille de position', 'Risque 0,5 à 1 % du capital par trade, pas plus. Les séries de pertes peuvent être longues.']],
+      note: 'Avantage mesuré réel mais mince (+0,06 R par trade depuis 2021). À tester en papier d’abord. Actions SPUS : halal (filtre AAOIFI). Actions européennes : conformité à vérifier toi-même.' },
+    mom: { t: 'Actions : momentum halal mensuel', tab: 'stk', tabL: 'Actions', steps: [
+      ['Une fois par mois', 'Le premier jour de bourse du mois, ouvre l’onglet Actions : la liste des 10 actions du mois est prête.'],
+      ['Filtre de marché', 'Si le S&P 500 est sous sa moyenne 200 jours ce jour-là, on reste en liquidités tout le mois.'],
+      ['La sélection', 'Parmi les ~215 actions du SPUS (halal) : les 10 meilleures sur 12 mois (hors dernier mois), seulement si elles sont au-dessus de leur moyenne 200 jours.'],
+      ['Rééquilibre', 'Vends celles qui sortent de la liste, achète les entrées, à parts égales. Ne touche à rien entre deux rendez-vous.']],
+      note: 'Backtest : 20 à 32 %/an contre 14,8 %/an pour le S&P 500, mais gonflé par le biais du survivant. Suivi réel à partir du 1er novembre 2026.' },
+    pf: { t: 'Mon portefeuille', tab: 'pf', tabL: 'Portefeuille', steps: [
+      ['Renforcer', 'Tendance haussière (au-dessus de la moyenne 200 jours), prix revenu près de sa moyenne 20 jours et RSI sous 62.'],
+      ['Alléger', 'Surchauffe : RSI au-dessus de 72 ou prix sur la bande haute de Bollinger. Encaisse une partie.'],
+      ['Sortie sur rebond', 'Sous la moyenne 200 jours et moins de +10 % sur 30 jours : profite du prochain rebond pour sortir.'],
+      ['Conserver', 'Aucun des cas ci-dessus. Les lignes de moins de 30 € sont signalées comme poussières à regrouper.'],
+      ['Surveillance', 'Entrée possible près de la moyenne 20 jours en tendance haussière ; attendre un repli si la hausse est tendue ; éviter sous la moyenne 200 jours.']],
+      note: 'Clique sur une ligne pour changer sa quantité ou la passer en surveillance. Le bouton EUR · USD · BTC · ETH change la devise d’affichage. Tes données restent sur cet appareil.' }
+  };
+  const howSec = document.getElementById('v-how'); const howCards = [...howSec.children];
+  const cryptoCards = howCards.slice(0, 2);
+  const daily = document.createElement('div'); daily.className = 'card';
+  daily.innerHTML = `<div class="ctitle"><h2>Concrètement, pour prendre un trade</h2></div><div class="how">${[
+    ['Chaque matin', 'Ouvre l’onglet Aujourd’hui : le scan de la nuit liste les cryptos « prêtes maintenant » et les places libres.'],
+    ['Achète en spot', 'Sur ta plateforme, au comptant uniquement, si le prix est encore sous l’entrée + 3 %. Montant : celui affiché.'],
+    ['Pose le stop', 'Tout de suite, un ordre stop au niveau SL affiché.'],
+    ['Enregistre', 'Bouton « J’ai acheté » avec ton prix et ta quantité réels.'],
+    ['Suis dans Trades', 'Le site te dit quand vendre (TP suiveur touché) ou renforcer, et le nouveau stop à poser.']
+  ].map((s, i) => `<div><span class="n">${i + 1}</span><b>${s[0]}</b><p>${s[1]}</p></div>`).join('')}</div>`;
+  cryptoCards[1].after(daily); cryptoCards.push(daily);
+  const howPick = document.createElement('div'); howPick.className = 'card';
+  howPick.innerHTML = `<label class="f" style="width:100%"><span style="font-weight:700;font-size:15px">Quelle méthode veux-tu revoir ?</span><select id="howSel" style="width:100%;margin-top:6px">${Object.entries(HOW).map(([k, m]) => `<option value="${k}">${m.t}</option>`).join('')}</select></label>
+    <div class="btns" style="margin-top:10px"><button class="ghost" id="howGo"></button></div>`;
+  howSec.prepend(howPick);
+  const howBox = document.createElement('div'); howBox.className = 'card'; howPick.after(howBox);
+  function howShow(k) {
+    if (!HOW[k]) k = 'crypto'; LS.set('howSel', k); $('#howSel').value = k; const m = HOW[k];
+    cryptoCards.forEach(c => c.hidden = k !== 'crypto'); howBox.hidden = k === 'crypto';
+    if (m.steps) howBox.innerHTML = `<div class="ctitle"><h2>${m.t}</h2></div><div class="how">${m.steps.map((s, i) => `<div><span class="n">${i + 1}</span><b>${s[0]}</b><p>${s[1]}</p></div>`).join('')}</div><p class="note" style="margin-top:12px">${m.note}</p>`;
+    $('#howGo').textContent = 'Ouvrir l’onglet ' + m.tabL; $('#howGo').onclick = () => go(m.tab);
+  }
+  $('#howSel').onchange = e => howShow(e.target.value);
+  howShow(LS.get('howSel', 'crypto'));
+  const CTX = { home: 'crypto', trades: 'crypto', mkt: 'ana', stk: 'swing', pf: 'pf' };
+  help.onclick = () => { if (CTX[S.view]) howShow(CTX[S.view]); go('how'); };
+
   /* ---------- branchement sur le rendu principal ---------- */
   const baseRender = render;
   render = function () { baseRender(); if (!S.data) return; if (S.view === 'pf') pfView(); if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
