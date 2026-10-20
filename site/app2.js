@@ -73,6 +73,19 @@
     if (cg.length) { try { const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cg.map(a => a.cg).join(',')}&vs_currencies=usd&include_24hr_change=true`); const j = await r.json(); for (const a of cg) if (j[a.cg]) Q.d[a.sym] = { p: j[a.cg].usd, d1: (j[a.cg].usd_24h_change || 0) / 100, src: 'cg' }; } catch (e) { } }
     Q.at = Date.now(); LS.set('pfq', Q.d); LS.set('pfqAt', Q.at); Q.busy = false; render();
   }
+  /* devise d'affichage du portefeuille : EUR, USD, BTC ou ETH */
+  const CURS = { EUR: '€', USD: '$', BTC: '₿', ETH: 'Ξ' };
+  const curNow = () => { const c = LS.get('pfCur', 'EUR'); return CURS[c] ? c : 'EUR'; };
+  const pxOf = s => Q.d[s]?.p || (S.data?.market || []).find(m => m.s === s)?.p || null;
+  function fc(usd) {
+    const c = curNow(); if (usd == null || !isFinite(usd)) return '–';
+    if (c === 'EUR') return fe(usd / fx());
+    if (c === 'USD') return Math.round(usd).toLocaleString('fr-FR') + ' $';
+    const r = pxOf(c); if (!r) return fe(usd / fx());
+    const v = usd / r, a = Math.abs(v); const d = a >= 10 ? 2 : a >= 1 ? 3 : a >= .01 ? 4 : 6;
+    return v.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }) + ' ' + CURS[c];
+  }
+  const curSeg = () => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span class="mute" style="font-size:13px">Afficher en</span><div class="seg" role="group" aria-label="Devise d'affichage">${Object.keys(CURS).map(k => `<button data-cur="${k}" aria-pressed="${curNow() === k}">${k}</button>`).join('')}</div></div>`;
   function price(a) { if (a.src === 'stable') return { p: 1, d1: 0 }; return Q.d[a.sym] || null; }
   function sig(a) {
     if (a.src === 'stable') return ['Réserve', 'b-grey', 'Liquidités prêtes pour renforcer.'];
@@ -95,20 +108,21 @@
     let tot = 0, inv = 0, d24 = 0, miss = 0; const rows = held.map(a => { const q = price(a); const v = q ? q.p * a.qty : 0; if (!q) miss++; tot += v; inv += a.invested || 0; if (q && q.d1 != null) d24 += v - v / (1 + q.d1); return { a, q, v, s: sig(a) }; }).sort((x, y) => y.v - x.v);
     const F = fx(); const goal = st.goal || { target: 75000, date: '2029-10-01' }; const pct = Math.min(1, tot / F / goal.target);
     const mult = goal.target / (tot / F || 1);
-    $('#pfHead').innerHTML = `<div class="kpi3" style="margin-top:0;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
-      <div><span>Valeur</span><b class="num">${fe(tot / F)}</b><span>${fv(tot).replace('/j', '')}</span></div>
-      <div><span>Plus ou moins-value</span><b class="num ${tot - inv >= 0 ? 'up' : 'down'}">${fe((tot - inv) / F)}</b><span>${fpc(inv ? (tot / inv - 1) * 100 : null, 0)} sur ${fe(inv / F)}</span></div>
-      <div><span>24 h</span><b class="num ${d24 >= 0 ? 'up' : 'down'}">${fe(d24 / F)}</b><span>${fpc(tot ? d24 / (tot - d24) * 100 : null)}</span></div></div>
+    $('#pfHead').innerHTML = `${curSeg()}<div class="kpi3" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+      <div><span>Valeur</span><b class="num">${fc(tot)}</b><span>${curNow() === 'EUR' ? fv(tot).replace('/j', '') : fe(tot / F)}</span></div>
+      <div><span>Plus ou moins-value</span><b class="num ${tot - inv >= 0 ? 'up' : 'down'}">${fc(tot - inv)}</b><span>${fpc(inv ? (tot / inv - 1) * 100 : null, 0)} sur ${fc(inv)}</span></div>
+      <div><span>24 h</span><b class="num ${d24 >= 0 ? 'up' : 'down'}">${fc(d24)}</b><span>${fpc(tot ? d24 / (tot - d24) * 100 : null)}</span></div></div>
       <div style="margin-top:14px"><div style="display:flex;justify-content:space-between;font-size:13px"><b>Objectif ${fe(goal.target)} · ${new Date(goal.date).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</b><span class="mute">×${mult.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} à faire</span></div><div class="bar" style="margin-top:6px"><span style="width:${(pct * 100).toFixed(1)}%;background:var(--acc)"></span></div></div>
       ${allocBar(rows, tot)}${miss ? `<p class="note" style="margin-top:8px">${miss} ligne(s) sans prix (comptées à 0).</p>` : ''}`;
     const grp = {}; for (const r of rows) (grp[r.s[0]] = grp[r.s[0]] || []).push(r); const dust = rows.filter(r => r.q && r.v / F < 30);
     const todo = [['Alléger', 'b-warn', 'Prends une partie des gains'], ['Sortie sur rebond', 'b-down', 'Sors sur le prochain rebond'], ['Renforcer', 'b-up', 'Zone de renfort'], ['Poussières', 'b-grey', 'Lignes de moins de 30 € à regrouper']];
-    $('#pfTodo').innerHTML = todo.map(([k, c, t]) => { const L = k === 'Poussières' ? dust : (grp[k] || []); if (!L.length) return ''; return `<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="badge ${c}">${k} · ${L.length}</span><b class="num" style="font-size:13.5px">${fe(L.reduce((s, r) => s + r.v, 0) / F)}</b></div><div style="font-size:13.5px;margin-top:4px">${t}</div><div class="mute" style="font-size:12.5px">${L.map(r => esc(r.a.sym)).join(' · ')}</div></div>`; }).join('') || '<div class="empty">Aucune action particulière : tout est en « Conserver ».</div>';
+    $('#pfTodo').innerHTML = todo.map(([k, c, t]) => { const L = k === 'Poussières' ? dust : (grp[k] || []); if (!L.length) return ''; return `<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="badge ${c}">${k} · ${L.length}</span><b class="num" style="font-size:13.5px">${fc(L.reduce((s, r) => s + r.v, 0))}</b></div><div style="font-size:13.5px;margin-top:4px">${t}</div><div class="mute" style="font-size:12.5px">${L.map(r => esc(r.a.sym)).join(' · ')}</div></div>`; }).join('') || '<div class="empty">Aucune action particulière : tout est en « Conserver ».</div>';
     $('#pfSub').textContent = `${held.length} lignes · prix ${Q.at ? 'du ' + new Date(Q.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'non chargés'}`;
     $('#pfList').innerHTML = rows.map(r => rowHtml(r.a, r.q, r.v, r.s)).join('');
     $('#pfWatch').innerHTML = watch.length ? watch.map(a => rowHtml(a, price(a), null, sig(a))).join('') : '<div class="empty">Aucune crypto en surveillance.</div>';
     document.querySelectorAll('[data-pfe]').forEach(b => b.onclick = () => editAsset(b.dataset.pfe));
     $('#pfRef').textContent = 'Actualiser les prix'; setGoalInputs(st);
+    document.querySelectorAll('[data-cur]').forEach(b => b.onclick = () => { LS.set('pfCur', b.dataset.cur); render(); });
   }
   function allocBar(rows, tot) { if (!tot) return ''; const cols = ['#4F46E5', '#0E9F6E', '#D97706', '#DB2777', '#0891B2', '#7C3AED']; const top = rows.slice(0, 6); const rest = tot - top.reduce((s, r) => s + r.v, 0);
     const parts = [...top.map((r, i) => [r.a.sym, r.v, cols[i]]), ['Autres', rest, 'var(--grey)']];
@@ -116,9 +130,9 @@
   function rowHtml(a, q, v, s) {
     const F = fx(); const pl = v != null && a.invested ? (v / a.invested - 1) * 100 : null; const rd = (S.data?.signals || []).find(x => x.s === a.sym) ? '<span class="tag b-up">cassure</span>' : (S.data?.near || []).find(x => x.s === a.sym) ? '<span class="tag b-warn">proche cassure</span>' : '';
     return `<div class="li" style="cursor:pointer" data-pfe="${esc(a.sym)}" role="button" tabindex="0">${logo(a.sym, 34)}<div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>${esc(a.sym)}</b><span class="badge ${s[1]}" style="padding:2px 8px;font-size:11px">${s[0]}</span>${rd}${a.flag ? `<span class="tag b-warn">${esc(a.flag)}</span>` : ''}</div>
-      <div class="mute" style="font-size:12px">${v != null ? `${fq(a.qty)} · investi ${fe(a.invested / F)}` : esc(s[2])}</div></div>
+      <div class="mute" style="font-size:12px">${v != null ? `${fq(a.qty)} · investi ${fc(a.invested)}` : esc(s[2])}</div></div>
       <div style="width:64px">${q?.spark ? spark(q.spark.slice(-30), { w: 64, h: 26 }) : ''}</div>
-      <div class="right"><b class="num">${v != null ? fe(v / F) : fp(q?.p)}</b><span class="num ${(v != null ? pl : (q?.d1 ?? 0) * 100) >= 0 ? 'up' : 'down'}">${v != null ? fpc(pl, 0) : fpc((q?.d1 ?? 0) * 100)}</span></div></div>`;
+      <div class="right"><b class="num">${v != null ? fc(v) : fp(q?.p)}</b><span class="num ${(v != null ? pl : (q?.d1 ?? 0) * 100) >= 0 ? 'up' : 'down'}">${v != null ? fpc(pl, 0) : fpc((q?.d1 ?? 0) * 100)}</span></div></div>`;
   }
   function editAsset(sym) {
     const st = PF.get(); const a = st.assets.find(x => x.sym === sym); if (!a) return;
