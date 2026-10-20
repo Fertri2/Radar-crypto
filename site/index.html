@@ -153,7 +153,7 @@ label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--in
 .onb{background:linear-gradient(135deg,var(--accbg),var(--surf));}
 /* bottom nav */
 nav.bottom{position:fixed;left:0;right:0;bottom:0;background:var(--surf);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:6px 6px calc(6px + env(safe-area-inset-bottom));z-index:20;box-shadow:0 -4px 20px rgba(21,26,45,.06)}
-nav.bottom button{flex:1;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11.5px;font-weight:600;color:var(--mute);padding:6px 2px;position:relative}
+nav.bottom button{flex:1;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;font-weight:600;color:var(--mute);padding:6px 2px;position:relative}
 nav.bottom button[aria-current="page"]{color:var(--acc)}
 nav.bottom .dotn{position:absolute;top:2px;left:calc(50% + 8px);min-width:16px;height:16px;border-radius:999px;background:var(--down);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;padding:0 4px}
 .foot{font-size:12px;color:var(--mute);text-align:center;margin:20px 0 10px}
@@ -242,6 +242,33 @@ nav.bottom .dotn{position:absolute;top:2px;left:calc(50% + 8px);min-width:16px;h
     </div>
   </section>
 
+  <!-- ACTIONS -->
+  <section class="view" id="v-stk" hidden>
+    <div class="card"><div class="mission" id="stkMission"></div></div>
+    <div class="card">
+      <div class="ctitle"><h2>Les 10 actions du mois</h2><span class="sub" id="stkSub"></span></div>
+      <div id="stkMoves" class="chips" style="margin-bottom:10px"></div>
+      <div class="list" id="stkList"></div>
+      <div class="btns" style="margin-top:12px;align-items:flex-end"><label class="f">Montant de la poche actions (€)<input id="stkCap" type="number" min="100" step="100"></label></div>
+      <p class="note" style="margin-top:8px">Sur Trading 212, achète chaque action pour le montant indiqué (les fractions d'action sont acceptées). Le 1er jour de Bourse de chaque mois, vends celles qui sortent de la liste et achète celles qui entrent.</p>
+    </div>
+    <div class="card">
+      <div class="ctitle"><h2>Suivi en direct</h2><span class="sub">portefeuille modèle vs S&amp;P 500</span></div>
+      <div id="stkLive"></div>
+    </div>
+    <div class="card">
+      <div class="ctitle"><h2>La méthode</h2><span class="sub">momentum halal</span></div>
+      <div class="how">
+        <div><span class="n">1</span><b>Univers halal</b><p>Les ~215 actions du SPUS, l'ETF S&amp;P 500 Sharia filtré selon les normes AAOIFI.</p></div>
+        <div><span class="n">2</span><b>Les plus fortes</b><p>Chaque mois, on classe les actions selon leur hausse sur 12 mois (sans le dernier mois) et on garde les 10 premières, si elles sont au-dessus de leur moyenne 200 jours.</p></div>
+        <div><span class="n">3</span><b>Le marché d'abord</b><p>Si le S&amp;P 500 est sous sa moyenne 200 jours le 1er du mois, on passe tout en liquidités.</p></div>
+        <div><span class="n">4</span><b>Une fois par mois</b><p>Rien à faire entre deux rééquilibrages. Parts égales : 10 % par action.</p></div>
+      </div>
+      <p class="note" style="margin-top:12px">Backtest 2016-2026 : 20 à 32 %/an selon le jour de rééquilibrage, contre 14,8 %/an pour le S&amp;P 500, pire chute −39 % (−34 % pour l'indice). Résultat flatteur : le test porte sur les actions présentes dans le SPUS aujourd'hui, et l'avance vient surtout de 2022-2026. Réaliste : quelques points de plus par an que l'indice, avec des chutes plus fortes. Ta pie d'ETF reste le cœur du portefeuille.</p>
+    </div>
+    <details class="card"><summary style="cursor:pointer;font-weight:700">Classement complet (30 premières)</summary><div class="tw" style="margin-top:10px"><table id="stkRank"></table></div></details>
+  </section>
+
   <!-- MÉTHODE -->
   <section class="view" id="v-how" hidden>
     <div class="card">
@@ -275,7 +302,7 @@ nav.bottom .dotn{position:absolute;top:2px;left:calc(50% + 8px);min-width:16px;h
     </div>
   </section>
 
-  <p class="foot">Outil personnel d'aide à la décision, pas un conseil en investissement. Les performances passées ne préjugent pas des performances futures. Données : Binance.</p>
+  <p class="foot">Outil personnel d'aide à la décision, pas un conseil en investissement. Les performances passées ne préjugent pas des performances futures. Données : Binance, Yahoo Finance, SP Funds.</p>
 </main>
 
 <nav class="bottom" id="navBot" aria-label="Sections"></nav>
@@ -295,6 +322,8 @@ const save=()=>LS.set('trades',S.trades);
 
 /* ---------- icônes ---------- */
 const I={
+ stk:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg>',
+ cal:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
  home:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>',
  mkt:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/></svg>',
  trades:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>',
@@ -338,7 +367,7 @@ function closeT(t,x,why,d){Object.assign(t,{status:'closed',x,why,closedDay:d||n
 function autoPaper(){for(const t of S.trades.filter(t=>t.status==='open'&&t.paper)){const r=evalPos(t);if(r.exit)closeT(t,r.exit.x,r.exit.why,r.exit.d)}}
 
 /* ---------- navigation ---------- */
-const VIEWS=[['home','Aujourd’hui',I.home],['mkt','Marché',I.mkt],['trades','Mes trades',I.trades],['how','Méthode',I.how]];
+const VIEWS=[['home','Aujourd’hui',I.home],['mkt','Marché',I.mkt],['stk','Actions',I.stk],['trades','Mes trades',I.trades],['how','Méthode',I.how]];
 function nav(){const sells=S.trades.filter(t=>t.status==='open'&&!t.paper&&evalPos(t).exit).length;
   $('#navBot').innerHTML=VIEWS.map(([k,l,ic])=>`<button data-v="${k}" ${S.view===k?'aria-current="page"':''}>${ic}${l}${k==='trades'&&sells?`<span class="dotn">${sells}</span>`:''}</button>`).join('');
   $('#navTop').innerHTML=VIEWS.map(([k,l])=>`<button data-v="${k}" ${S.view===k?'aria-current="page"':''}>${l}${k==='trades'&&sells?` · ${sells}`:''}</button>`).join('');
@@ -351,7 +380,7 @@ function render(){nav();const D=S.data;if(!D)return;autoPaper();
   const at=new Date(D.at);const stale=Date.now()-at.getTime()>30*36e5;
   $('#scanInfo').innerHTML=`Mis à jour ${at.toLocaleString('fr-FR',{weekday:'long',hour:'2-digit',minute:'2-digit'})}<br>${D.marketSize||D.universe} cryptos analysées`;
   const h=new Date().getHours();$('#hello').firstChild.textContent=h<5||h>=18?'Bonsoir':'Bonjour';
-  if(S.view==='home')home(D,stale);if(S.view==='mkt')market(D);if(S.view==='trades')trades(D);if(S.view==='how')how(D)}
+  if(S.view==='home')home(D,stale);if(S.view==='mkt')market(D);if(S.view==='trades')trades(D);if(S.view==='stk')stocksView(D);if(S.view==='how')how(D)}
 
 function home(D,stale){
   $('#onb').hidden=LS.get('onbDone',false);
@@ -447,6 +476,24 @@ function how(D){const fx=D.fx||1.16;$('#cap').value=S.set.cap;$('#risk').value=S
     const yrs=[['2022',4],['2023',16],['2024',28],['2025',40],['2026',52]].map(([l,i])=>`<text x="${x(i)}" y="${H-2}" text-anchor="middle" style="font:600 11px var(--font);fill:var(--mute)">${l}</text>`).join('');
     $('#bt').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Backtest : la méthode termine à 5 226 euros contre 3 357 euros pour le BTC"><defs><linearGradient id="gb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--up)" stop-opacity=".22"/><stop offset="1" stop-color="var(--up)" stop-opacity="0"/></linearGradient></defs><line x1="${P}" x2="${W-P}" y1="${y(2000)}" y2="${y(2000)}" stroke="var(--line)"/><polygon points="${x(0)},${y(mn)} ${pl(0)} ${x(B.length-1)},${y(mn)}" fill="url(#gb)"/><polyline fill="none" stroke="var(--grey)" stroke-width="2" stroke-dasharray="5 4" points="${pl(1)}"/><polyline fill="none" stroke="var(--up)" stroke-width="2.5" stroke-linejoin="round" points="${pl(0)}"/>${yrs}</svg>`}}
 
+function stocksView(D){const K=D.stocks;$('#stkCap').value=LS.get('stkCap',1000);
+  if(!K){$('#stkMission').innerHTML=`<div class="ico o">${I.bell}</div><div><div class="t">Données actions indisponibles</div><div class="s">Le scan des actions a échoué cette nuit. Réessaie demain.</div></div>`;['#stkList','#stkLive','#stkRank','#stkMoves'].forEach(x=>$(x).innerHTML='');$('#stkSub').textContent='';return}
+  const cap=+LS.get('stkCap',1000);const per=K.list.length?cap/K.list.length:0;const fd=d=>new Date(d+'T12:00:00Z').toLocaleDateString('fr-FR',{day:'numeric',month:'long'}).replace(/^1 /,'1er ');
+  const today=new Date().toISOString().slice(0,10);const fresh=(Date.parse(today)-Date.parse(K.listDay))/864e5<=4;const moves=K.adds.length+K.drops.length;
+  let ico,cls,t,s;
+  if(!K.list.length){ico=I.shield;cls='a';t='Poche actions en liquidités';s=`Le S&P 500 était sous sa moyenne 200 jours le ${fd(K.listDay)}. Prochain point le ${fd(K.nextRebal)}.`}
+  else if(fresh&&moves){ico=I.cal;cls='g';t='Rééquilibrage du mois à faire';s=`${K.drops.length?'Vends '+K.drops.join(', ')+'. ':''}${K.adds.length?'Achète '+K.adds.join(', ')+'.':''} Montant par action : ${fe(per)}.`}
+  else{ico=I.coffee;cls='a';t='Rien à faire avant le '+fd(K.nextRebal);s=`La liste du ${fd(K.listDay)} reste valable tout le mois.`}
+  $('#stkMission').innerHTML=`<div class="ico ${cls}">${ico}</div><div><div class="t">${t}</div><div class="s">${s}</div></div>`;
+  $('#stkSub').textContent=`liste du ${fd(K.listDay)} · S&P 500 ${K.market.on?'au-dessus':'sous'} sa MM200`;
+  $('#stkMoves').innerHTML=(K.adds.length?K.adds.map(x=>`<span class="badge b-up">+ ${esc(x)} entre</span>`).join(''):'')+(K.drops.length?K.drops.map(x=>`<span class="badge b-down">− ${esc(x)} sort</span>`).join(''):'')+(!moves&&K.list.length?'<span class="badge b-grey">Même liste que le mois dernier</span>':'');
+  const av=x=>`<span class="logo" style="background:hsl(${hue(x)} 55% 48%);font-size:11px">${esc(x.slice(0,4))}</span>`;
+  $('#stkList').innerHTML=K.list.length?K.list.map((x,i)=>`<div class="li">${av(x.s)}<div class="mid"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b>${esc(x.s)}</b><span class="badge b-acc" style="padding:2px 8px;font-size:11px">n° ${i+1}</span>${K.adds.includes(x.s)?'<span class="badge b-up" style="padding:2px 8px;font-size:11px">nouvelle</span>':''}</div><div class="mute" style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</div><div style="font-size:12.5px"><span class="up num">${fpc(x.mom*100,0)} sur 12 mois</span> · <span class="num ${x.since>=0?'up':'down'}">${fpc(x.since*100)} ce mois</span></div></div><div class="right" style="width:84px">${spark(x.spark,{w:84,h:30})}<b class="num" style="margin-top:2px">${fe(per)}</b></div></div>`).join(''):`<div class="empty">${I.shield}<div>Aucune action ce mois-ci : la poche reste en liquidités.</div></div>`;
+  const L=K.live||[];
+  if(L.length<2){$('#stkLive').innerHTML=`<div class="empty">${I.cal}<div>Le suivi en direct démarre le 1er novembre 2026 : à partir de là, chaque jour compte pour de vrai, sans aucun réglage après coup.</div></div>`}
+  else{const a=L.at(-1);$('#stkLive').innerHTML=`<div class="kpi3" style="margin-top:0"><div><span>Modèle</span><b class="num ${a[1]>=100?'up':'down'}">${fpc(a[1]-100)}</b></div><div><span>S&amp;P 500</span><b class="num ${a[2]>=100?'up':'down'}">${fpc(a[2]-100)}</b></div><div><span>Écart</span><b class="num ${a[1]>=a[2]?'up':'down'}">${fpc(a[1]-a[2])}</b></div></div><div style="margin-top:10px">${spark(L.map(x=>x[1]),{w:320,h:90,full:true,color:'var(--acc)',ref:L.map(x=>x[2])})}</div><p class="note">Depuis le ${fd(L[0][0])} · pointillés : S&amp;P 500.</p>`}
+  $('#stkRank').innerHTML='<thead><tr><th>#</th><th>Action</th><th>12 mois</th><th>Tendance</th></tr></thead><tbody>'+K.ranking.map((x,i)=>`<tr><td>${i+1}</td><td style="text-align:left"><b>${esc(x.s)}</b>${x.inList?' <span class="tag b-acc">liste</span>':''}<div class="mute" style="font-size:11.5px;max-width:180px;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</div></td><td class="num up">${fpc(x.mom*100,0)}</td><td>${x.up?'<span class="tag b-up">↑</span>':'<span class="tag b-grey">↓ exclue</span>'}</td></tr>`).join('')+'</tbody>'}
+
 function take(sym,paper){const D=S.data;const s=D.signals.find(x=>x.s===sym);if(!s)return;let e=s.p;
   if(!paper){const v=prompt(`Prix d'achat réel de ${sym} en $ ?`,String(s.p));e=+String(v||'').replace(',','.');if(!(e>0))return}
   const z=size(e,s.stop);let q=z.q;if(!paper){const v=prompt('Quantité achetée ?',String(+z.q.toPrecision(5)));q=+String(v||'').replace(',','.');if(!(q>0))return}
@@ -460,7 +507,7 @@ $('#q').oninput=e=>{S.q=e.target.value.trim();S.lim=40;render()};
 $('#sort').onchange=e=>{S.sort=e.target.value;render()};
 $('#more').onclick=()=>{S.lim+=60;render()};
 const saveSet=()=>{S.set={cap:Math.max(100,+$('#cap').value||2000),risk:Math.min(2,Math.max(.25,+$('#risk').value||1))};LS.set('set',S.set);render()};
-$('#cap').onchange=saveSet;$('#risk').onchange=saveSet;
+$('#cap').onchange=saveSet;$('#stkCap').onchange=e=>{LS.set('stkCap',Math.max(100,+e.target.value||1000));render()};$('#risk').onchange=saveSet;
 $('#exp').onclick=()=>{const b=new Blob([JSON.stringify({v:1,trades:S.trades,set:S.set},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='journal-radar-crypto.json';a.click()};
 $('#impB').onclick=()=>$('#imp').click();
 $('#imp').onchange=async e=>{try{const j=JSON.parse(await e.target.files[0].text());if(!Array.isArray(j.trades))throw 0;const ids=new Set(S.trades.map(t=>t.id));S.trades=S.trades.concat(j.trades.filter(t=>!ids.has(t.id)));save();render();alert(j.trades.length+' trade(s) lus, journal fusionné.')}catch(err){alert('Fichier non reconnu.')}};
