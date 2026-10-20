@@ -66,6 +66,79 @@ async function okxList() {
   } catch (e) { return null; }
 }
 
+
+// ---------- Actions halal : momentum mensuel (top 10 du SPUS sur 12 mois, hors dernier mois) ----------
+const SPUS_FALLBACK = 'NVDA AAPL MSFT GOOGL AVGO TSLA MU LLY AMD XOM JNJ ABBV CSCO PG MRK LRCX AMAT HD PANW TMO TXN LIN CRWD IBM ORCL KLAC MRVL CRM GILD ADI ANET PEP QCOM ABT COP UNP TJX ISRG NOW ACN DHR STX UBER VRTX NEM BKNG MCK MDT LOW FTNT GLW SYK FCX TT ADBE CSX EMR JCI CDNS PWR SNPS MMM WM EOG MDLZ ROST CL VRT SHW SLB ORLY CTAS UPS REGN ITW NSC ECL BSX TGT CMI APD MNST URI CAH TEL NUE FAST NXPI MPWR BDX TER A ADSK EW GWW AZO ROK WAB RSG GRMN CARR IDXX FIX OXY EBAY NKE WDAY NTAP MCHP ROP DHI FANG WAT ADM STLD ODFL VMC EXPE BIIB KMB RMD CTSH DXCM ON JBL MTD WSM HAL EXPD MLM DOV OTIS XYL CHD FFIV LH IR HSY CPRT PHM HUBB ULTA PTC VRSN TPR PPG WST CDW STE EFX DD INCY NDSN GPC PKG FSLR TSCO CF JBHT CHRW IEX GDDY MAS IT RVTY ZBRA AVY TRMB BBY RL FICO GNRC COO ALB TECH LII TYL ALLE DECK CSGP MKC SWKS LULU AOS PNR PODD ROL ALGN';
+const YH = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
+async function yahoo(sym) {
+  const y = sym.replace(/\./g, '-');
+  for (const h of YH) {
+    try {
+      const r = await fetch(`${h}/v8/finance/chart/${y}?range=2y&interval=1d`, { headers: { 'user-agent': 'Mozilla/5.0', accept: 'application/json' } });
+      if (!r.ok) continue;
+      const j = await r.json(); const res = j.chart?.result?.[0]; if (!res) continue;
+      const t = res.timestamp, a = res.indicators.adjclose?.[0]?.adjclose || res.indicators.quote[0].close;
+      const out = []; for (let i = 0; i < t.length; i++) if (a[i] != null) out.push([new Date(t[i] * 1000).toISOString().slice(0, 10), a[i]]);
+      return out;
+    } catch (e) { /* hôte suivant */ }
+  }
+  return null;
+}
+async function spusHoldings() {
+  try {
+    const r = await fetch('https://www.sp-funds.com/wp-content/uploads/data/TidalFG_Holdings_SPUS.csv', { headers: { 'user-agent': 'Mozilla/5.0' } });
+    if (r.ok) {
+      const rows = (await r.text()).trim().split('\n').slice(1).map(l => l.split(','));
+      const list = rows.filter(x => x[2] && /^[A-Z.]+$/.test(x[2])).map(x => ({ s: x[2], name: x[4] }));
+      if (list.length > 100) return { list, src: 'SP Funds (SPUS)' };
+    }
+  } catch (e) { /* liste de secours */ }
+  return { list: SPUS_FALLBACK.split(' ').map(s => ({ s, name: s })), src: 'liste de secours' };
+}
+async function stocks() {
+  const { list, src } = await spusHoldings();
+  const spy = await yahoo('SPY'); if (!spy || spy.length < 300) throw new Error('SPY indisponible');
+  const days = spy.map(x => x[0]); const di = new Map(days.map((d, i) => [d, i]));
+  const spyC = spy.map(x => x[1]); const spyM = sma(spyC, 200);
+  const S = {};
+  for (const x of list) {
+    const k = await yahoo(x.s); await sleep(60);
+    if (!k || k.length < 260) continue;
+    const c = Array(days.length).fill(null); for (const [d, v] of k) { const i = di.get(d); if (i != null) c[i] = v; }
+    for (let i = 1; i < c.length; i++) if (c[i] == null && c[i - 1] != null) c[i] = c[i - 1];
+    S[x.s] = { name: x.name, c, m200: sma(c.map(v => v ?? 0), 200) };
+  }
+  const monthStart = d => { const m = d.slice(0, 7); return days.findIndex(x => x.slice(0, 7) === m); };
+  const pick = i => {
+    const on = spyC[i] > spyM[i];
+    const rank = Object.entries(S).filter(([, v]) => i >= 252 && v.c[i - 252] && v.c[i]).map(([s, v]) => ({ s, name: v.name, mom: v.c[i - 21] / v.c[i - 252] - 1, up: v.c[i] > v.m200[i], p: v.c[i] })).sort((a, b) => b.mom - a.mom);
+    return { on, rank, list: on ? rank.filter(r => r.up).slice(0, 10) : [] };
+  };
+  const last = days.length - 1;
+  const iCur = monthStart(days[last]);
+  const prevMonth = (() => { const d = new Date(days[iCur] + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 7); })();
+  const iPrev = days.findIndex(x => x.slice(0, 7) === prevMonth);
+  const cur = pick(iCur), prev = iPrev >= 0 ? pick(iPrev) : { list: [] }, now = pick(last);
+  const curSet = new Set(cur.list.map(x => x.s)), prevSet = new Set(prev.list.map(x => x.s));
+  // suivi en direct du portefeuille modèle depuis le 1er novembre 2026 (aucune optimisation après cette date)
+  const LIVE = '2026-11-01'; const live = [];
+  let eq = 100, held = [];
+  for (let i = days.findIndex(d => d >= LIVE); i >= 0 && i <= last; i++) {
+    if (held.length) { const r = held.reduce((a, s) => a + S[s].c[i] / S[s].c[i - 1], 0) / held.length; eq *= r; }
+    if (i === monthStart(days[i])) held = pick(i).list.map(x => x.s);
+    live.push([days[i], +eq.toFixed(2), +(spyC[i] / spyC[days.findIndex(d => d >= LIVE)] * 100).toFixed(2)]);
+  }
+  const nm = new Date(days[last] + 'T00:00:00Z'); nm.setUTCMonth(nm.getUTCMonth() + 1, 1);
+  return {
+    src, count: Object.keys(S).length, asOf: days[last], listDay: days[iCur], nextRebal: nm.toISOString().slice(0, 10),
+    market: { p: spyC[last], ma200: spyM[last], on: spyC[last] > spyM[last], onAtList: cur.on },
+    list: cur.list.map(x => ({ ...x, p: S[x.s].c[last], since: S[x.s].c[last] / S[x.s].c[iCur] - 1, spark: S[x.s].c.slice(-60).map(v => +(+v).toPrecision(5)) })),
+    adds: cur.list.filter(x => !prevSet.has(x.s)).map(x => x.s), drops: prev.list.filter(x => !curSet.has(x.s)).map(x => x.s),
+    ranking: now.rank.slice(0, 30).map(x => ({ s: x.s, name: x.name, mom: x.mom, up: x.up, p: x.p, inList: curSet.has(x.s) })),
+    live
+  };
+}
+
 async function main() {
   const errors = [];
   const tick = await get('/api/v3/ticker/24hr');
@@ -108,16 +181,19 @@ async function main() {
   const near = tradable.filter(c => !c.brk && c.dist >= 0 && c.dist <= CFG.near).sort((a, b) => a.dist - b.dist)
     .map(c => ({ s: c.s, p: c.p, trigger: c.hiNext, dist: c.dist, r30: c.r30, okx: c.okx }));
 
+  let stk = null; try { stk = await stocks(); } catch (e) { errors.push('Actions : ' + e.message); }
+
   const out = {
     at: new Date().toISOString(), day: coins.find(c => c.s === 'BTC')?.day, cfg: CFG, btc, fx, okxChecked: !!okx,
     tradeable: btc.on, signals: sig, near, universe: tradable.length, marketSize: coins.length, breadth,
     market: coins.map(c => ({ s: c.s, p: c.p, vol: c.vol, r1: c.r1, r7: c.r7, r30: c.r30, up: c.ma50 != null ? c.p > c.ma50 : null, brk: c.brk, dist: c.dist, tag: c.tag, elig: c.elig, okx: c.okx, spark: c.spark })),
     levels: Object.fromEntries(tradable.map(c => [c.s, { p: c.p, lo10: c.loNext, hi20: c.hiNext, atr: c.atr, r30: c.r30, hist: c.hist }])),
+    stocks: stk,
     errors: errors.slice(0, 20)
   };
   mkdirSync('site/data', { recursive: true });
   writeFileSync('site/data/signals.json', JSON.stringify(out));
-  console.log(`OK · marché ${coins.length} · éligibles ${tradable.length} · BTC ${btc.on ? 'au-dessus' : 'sous'} MM100 · ${sig.length} signal(s) · ${near.length} proche(s) · OKX ${okx ? 'vérifié' : 'non vérifié'} · ${errors.length} erreur(s)`);
+  console.log(`OK · marché ${coins.length} · éligibles ${tradable.length} · BTC ${btc.on ? 'au-dessus' : 'sous'} MM100 · ${sig.length} signal(s) · ${near.length} proche(s) · OKX ${okx ? 'vérifié' : 'non vérifié'} · actions ${stk ? stk.count + ' lues, ' + stk.list.length + ' retenues' : 'indisponibles'} · ${errors.length} erreur(s)`);
   if (tradable.length < 10) { console.error('Trop peu de cryptos lues : source de données indisponible ?'); process.exit(1); }
 }
 main().catch(e => { console.error(e); process.exit(1); });
