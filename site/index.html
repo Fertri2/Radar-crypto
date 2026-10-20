@@ -278,16 +278,17 @@ nav.bottom .dotn{position:absolute;top:2px;left:calc(50% + 8px);min-width:16px;h
         <div><span class="n">2</span><b>On achète une cassure</b><p>Une crypto clôture la journée au-dessus de son plus haut des 20 jours précédents.</p></div>
         <div><span class="n">3</span><b>Un stop de sécurité</b><p>Posé tout de suite, à 2 fois la variation moyenne d'une journée sous le prix d'achat. Il ne bouge jamais.</p></div>
         <div><span class="n">4</span><b>On sort sur faiblesse</b><p>Quand une clôture passe sous le plus bas des 10 jours précédents, on vend le lendemain matin.</p></div>
+        <div><span class="n">5</span><b>On renforce les gagnants</b><p>Jusqu'à 2 renforts : quand la clôture monte de 2 fois la variation moyenne d'une journée au-dessus de la dernière entrée. À chaque renfort, le SL de toute la position remonte.</p></div>
       </div>
-      <p class="note" style="margin-top:12px">Mise : 1 % du capital risqué par trade, 30 % du capital au maximum dans une crypto, 3 positions au plus. Exclues : stablecoins, memecoins, prêt, rendement et dérivés.</p>
+      <p class="note" style="margin-top:12px">Mise : 1 % du capital risqué par entrée, 10 % du capital au maximum par entrée (30 % avec les 2 renforts), 3 cryptos au plus. Exclues : stablecoins, memecoins, prêt, rendement et dérivés.</p>
     </div>
     <div class="card">
       <div class="ctitle"><h2>Backtest sur 5 ans</h2><span class="sub">2 000 € au départ</span></div>
       <div id="bt"></div>
-      <div class="chips" style="margin:6px 0 10px"><span class="badge b-up">━ Méthode : 5 226 €</span><span class="badge b-grey">┅ BTC conservé : 3 357 €</span></div>
+      <div class="chips" style="margin:6px 0 10px"><span class="badge b-up">━ Avec renforts : 6 786 €</span><span class="badge b-acc">━ Sans renfort : 4 317 €</span><span class="badge b-grey">┅ BTC conservé : 3 357 €</span></div>
       <div class="tw"><table><thead><tr><th>Année</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th><th>2026</th></tr></thead>
-        <tbody><tr><td>Méthode</td><td class="down">−8 %</td><td class="up">+40 %</td><td class="up">+11 %</td><td class="up">+43 %</td><td class="up">+3 %</td></tr><tr><td>BTC</td><td class="down">−65 %</td><td class="up">+154 %</td><td class="up">+112 %</td><td class="down">−7 %</td><td class="down">−8 %</td></tr></tbody></table></div>
-      <p class="note" style="margin-top:10px">130 trades, 1 gagnant sur 3, gain moyen +35 %, perte moyenne −11 %, durée médiane 16 jours, pire chute −21 %. Frais inclus. Test limité aux cryptos encore cotées aujourd'hui : les résultats réels seront probablement moins bons. Plusieurs semaines sans signal sont normales.</p>
+        <tbody><tr><td>Avec renforts</td><td class="down">−8 %</td><td class="up">+69 %</td><td class="up">+4 %</td><td class="up">+110 %</td><td class="up">+3 %</td></tr><tr><td>Sans renfort</td><td class="down">−8 %</td><td class="up">+34 %</td><td class="up">+14 %</td><td class="up">+48 %</td><td class="up">+4 %</td></tr><tr><td>BTC</td><td class="down">−65 %</td><td class="up">+154 %</td><td class="up">+112 %</td><td class="down">−7 %</td><td class="down">−8 %</td></tr></tbody></table></div>
+      <p class="note" style="margin-top:10px">42 cryptos liquides, sept. 2021 → oct. 2026. Avec renforts : +239 %, pire chute −25 % (sans renfort : +116 %, −20 %). Les renforts paient surtout dans les grandes hausses (2023, 2025) et coûtent un peu les années hésitantes (2024). Environ 1 trade sur 5 finit gagnant, mais les gagnants sont très gros. Frais inclus. Test limité aux cryptos encore cotées aujourd'hui : les résultats réels seront probablement moins bons. Plusieurs semaines sans signal sont normales.</p>
     </div>
     <div class="card">
       <div class="ctitle"><h2>Mes réglages</h2></div>
@@ -315,7 +316,7 @@ const fe=v=>v==null||!isFinite(v)?'–':(v<0?'−':'')+Math.abs(v).toLocaleStrin
 const fpc=(v,d=1)=>v==null||!isFinite(v)?'–':(v>0?'+':v<0?'−':'')+Math.abs(v).toLocaleString('fr-FR',{maximumFractionDigits:d})+' %';
 const fq=v=>v>=100?v.toLocaleString('fr-FR',{maximumFractionDigits:1}):v>=1?v.toLocaleString('fr-FR',{maximumFractionDigits:3}):v.toPrecision(4).replace('.',',');
 const fv=v=>v>=1e9?(v/1e9).toLocaleString('fr-FR',{maximumFractionDigits:1})+' Md$':v>=1e6?(v/1e6).toLocaleString('fr-FR',{maximumFractionDigits:0})+' M$':(v/1e3).toLocaleString('fr-FR',{maximumFractionDigits:0})+' k$';
-const FEE=.001,MAXPOS=3,CAPPCT=.3,CHASE=.03,GATE=10;
+const FEE=.001,MAXPOS=3,CAPPCT=.3,UNITCAP=.1,PYR=2,STEP=2,CHASE=.03,GATE=10;
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const S={data:null,view:LS.get('view','home'),mode:LS.get('mode','paper'),set:LS.get('set',{cap:2000,risk:1}),trades:LS.get('trades',[]),f:'all',q:'',sort:'vol',lim:40};
 const save=()=>LS.set('trades',S.trades);
@@ -353,18 +354,21 @@ function spark(vals,{w=120,h=36,lines=[],color,fill=true,full=false,ref=null}={}
 
 /* ---------- calculs ---------- */
 function size(e,stop){const fx=S.data?.fx||1.16;const risk=Math.min(Math.max(+S.set.risk||1,.25),2)/100;const capUsd=S.set.cap*fx;
-  let q=capUsd*risk/(e-stop);let capped=false;if(q*e>capUsd*CAPPCT){q=capUsd*CAPPCT/e;capped=true}
+  let q=capUsd*risk/(e-stop);let capped=false;if(q*e>capUsd*UNITCAP){q=capUsd*UNITCAP/e;capped=true}
   return {q,usd:q*e,eur:q*e/fx,loss:(q*(e-stop)+q*e*FEE*2)/fx,capped}}
-function evalPos(t){const L=S.data?.levels?.[t.s];if(!L)return {missing:true};const H=L.hist;const iE=H.findIndex(d=>d[0]===t.day);
-  if(iE<0)return {p:L.p,exitLvl:L.lo10};
+function evalPos(t){const L=S.data?.levels?.[t.s];if(!L)return {missing:true,units:t.units||[{d:t.day,px:t.e,q:t.q}],stop:t.stop};const H=L.hist;const iE=H.findIndex(d=>d[0]===t.day);
+  const a0=t.atr0||(t.e-t.stop)/2;let stop=t.stop,last=t.e;const units=[{d:t.day,px:t.e,q:t.q}];
+  const nextLvl=()=>units.length<1+PYR?last+STEP*a0:null;
+  if(iE<0)return {p:L.p,exitLvl:L.lo10,stop,units,next:nextLvl()};
   for(let j=iE+1;j<H.length;j++){const [d,h,l,c]=H[j];const lo=Math.min(...H.slice(Math.max(0,j-10),j).map(x=>x[2]));
-    if(l<=t.stop)return {exit:{x:t.stop,d,why:'stop de sécurité touché'}};
-    if(c<lo)return {exit:{x:c,d,why:'clôture sous le plus bas 10 jours'}};
-    if(j-iE>=60)return {exit:{x:c,d,why:'60 jours écoulés'}}}
-  return {p:L.p,exitLvl:L.lo10}}
-function pnl(t,x){const fx=t.fx||S.data?.fx||1.16;const usd=t.q*(x-t.e)-t.q*(t.e+x)*FEE;return {eur:usd/fx,R:usd/(t.q*(t.e-t.stop))}}
-function closeT(t,x,why,d){Object.assign(t,{status:'closed',x,why,closedDay:d||new Date().toISOString().slice(0,10),...pnl(t,x)});save()}
-function autoPaper(){for(const t of S.trades.filter(t=>t.status==='open'&&t.paper)){const r=evalPos(t);if(r.exit)closeT(t,r.exit.x,r.exit.why,r.exit.d)}}
+    if(l<=stop)return {exit:{x:stop,d,why:units.length>1?'stop remonté touché':'stop de sécurité touché'},units,stop};
+    if(c<lo)return {exit:{x:c,d,why:'clôture sous le plus bas 10 jours'},units,stop};
+    if(j-iE>=60)return {exit:{x:c,d,why:'60 jours écoulés'},units,stop};
+    if(units.length<1+PYR&&c>=last+STEP*a0){const nst=Math.max(stop,c-2*a0);const q=size(c,nst).q;units.push({d,px:c,q,stop:nst});last=c;stop=nst}}
+  return {p:L.p,exitLvl:L.lo10,stop,units,next:nextLvl()}}
+function pnl(t,x,units){units=units||t.units||[{px:t.e,q:t.q}];const fx=t.fx||S.data?.fx||1.16;const usd=units.reduce((a,u)=>a+u.q*(x-u.px)-u.q*(u.px+x)*FEE,0);const risk=t.q*(t.e-t.stop);return {eur:usd/fx,R:usd/risk}}
+function closeT(t,x,why,d,units){Object.assign(t,{status:'closed',x,why,units:units||t.units,closedDay:d||new Date().toISOString().slice(0,10),...pnl(t,x,units)});save()}
+function autoPaper(){for(const t of S.trades.filter(t=>t.status==='open'&&t.paper)){const r=evalPos(t);if(r.exit)closeT(t,r.exit.x,r.exit.why,r.exit.d,r.units)}}
 
 /* ---------- navigation ---------- */
 const VIEWS=[['home','Aujourd’hui',I.home],['mkt','Marché',I.mkt],['stk','Actions',I.stk],['trades','Mes trades',I.trades],['how','Méthode',I.how]];
@@ -385,10 +389,11 @@ function render(){nav();const D=S.data;if(!D)return;autoPaper();
 function home(D,stale){
   $('#onb').hidden=LS.get('onbDone',false);
   const open=S.trades.filter(t=>t.status==='open'&&!!t.paper===(S.mode==='paper'));const realOpen=S.trades.filter(t=>t.status==='open'&&!t.paper);
-  const sells=realOpen.filter(t=>evalPos(t).exit);const sg=D.signals||[];const free=MAXPOS-open.length;const buyable=D.tradeable?sg.filter(s=>!open.some(t=>t.s===s.s)).slice(0,Math.max(free,0)):[];
+  const sells=realOpen.filter(t=>evalPos(t).exit);const adds=realOpen.filter(t=>{const r=evalPos(t);return !r.exit&&r.units&&r.units.length-1>(t.ack||0)});const sg=D.signals||[];const free=MAXPOS-open.length;const buyable=D.tradeable?sg.filter(s=>!open.some(t=>t.s===s.s)).slice(0,Math.max(free,0)):[];
   let ico,cls,t,s;
   if(stale){ico=I.bell;cls='o';t='Le scan de cette nuit n’a pas eu lieu';s='Les données ont plus de 30 heures. Réessaie plus tard dans la journée.'}
   else if(sells.length){ico=I.bell;cls='r';t=`${sells.length} vente${sells.length>1?'s':''} à faire ce matin`;s=`${sells.map(x=>x.s).join(', ')} : la règle de sortie s’est déclenchée. Va dans « Mes trades ».`}
+  else if(adds.length){ico=I.rocket;cls='g';t=`${adds.length} renfort${adds.length>1?'s':''} à faire ce matin`;s=`${adds.map(x=>x.s).join(', ')} continue${adds.length>1?'nt':''} de monter : la règle de renfort s’est déclenchée. Va dans « Mes trades ».`}
   else if(buyable.length){ico=I.rocket;cls='g';t=`${buyable.length} achat${buyable.length>1?'s':''} possible${buyable.length>1?'s':''} aujourd’hui`;s=`${buyable.map(x=>x.s).join(', ')} vien${buyable.length>1?'nent':'t'} de casser son plus haut des 20 jours. Ordre prêt juste en dessous.`}
   else if(!D.tradeable){ico=I.shield;cls='a';t='Rien à faire : le marché est fermé';s='Le BTC est sous sa moyenne 100 jours. La méthode protège ton capital en restant à l’écart.'}
   else{ico=I.coffee;cls='a';t='Rien à faire aujourd’hui';s=`Aucune cassure cette nuit${(D.near||[]).length?`, mais ${D.near.length} crypto${D.near.length>1?'s sont':' est'} tout près`:''}. C’est normal : la méthode attend les bonnes occasions.`}
@@ -414,7 +419,7 @@ function home(D,stale){
     const why=held?'déjà en position':!D.tradeable?'marché fermé':'plus de place (3 max)';
     return `<div class="sig ${blocked?'off':''}"><div class="hd"><div class="coin">${logo(s.s,40)}<div><div class="nm">${esc(s.s)}</div><div class="sb">+${Math.round(s.r30*100)} % sur 30 jours${s.okx===false?' · <span class="down">pas sur OKX</span>':''}</div></div></div><span class="badge ${blocked?'b-grey':'b-up'}">${blocked?why:'Achat possible'}</span></div>
      ${L?spark(L.hist.slice(-45).map(x=>x[3]),{w:320,h:70,full:true,lines:[{v:s.stop,c:'var(--down)'}]}):''}
-     <div class="nums"><div><span>Prix</span><b class="num">${fp(s.p)}</b></div><div><span>Stop de sécurité</span><b class="num down">${fp(s.stop)}</b></div><div><span>Montant à investir</span><b class="num">${fe(z.eur)}</b></div><div><span>Perte max si stop</span><b class="num down">${fe(-z.loss)}</b></div><div><span>TP suiveur</span><b class="num" style="color:var(--warn)">${fp(Math.max(s.lo10,s.stop))}</b><span>démarre au SL, puis monte</span></div><div><span>Objectif fixe</span><b>aucun</b></div></div><p class="note" style="margin:0">Le TP est une <b>sortie suiveuse</b> : le niveau monte avec le prix (plus bas des 10 derniers jours) et on vend quand une clôture passe dessous. Un objectif fixe a été testé : il réduit le gain sur 5 ans de +161 % à entre +15 % et +111 %.</p>
+     <div class="nums"><div><span>Prix</span><b class="num">${fp(s.p)}</b></div><div><span>Stop de sécurité</span><b class="num down">${fp(s.stop)}</b></div><div><span>Montant à investir</span><b class="num">${fe(z.eur)}</b></div><div><span>Perte max si stop</span><b class="num down">${fe(-z.loss)}</b></div><div><span>TP suiveur</span><b class="num" style="color:var(--warn)">${fp(Math.max(s.lo10,s.stop))}</b><span>démarre au SL, puis monte</span></div><div><span>Objectif fixe</span><b>aucun</b></div><div><span>Renfort 1 si clôture ≥</span><b class="num up">${fp(s.p+STEP*s.atr)}</b></div><div><span>Renfort 2 si clôture ≥</span><b class="num up">${fp(s.p+2*STEP*s.atr)}</b></div></div><p class="note" style="margin:0">Le TP est une <b>sortie suiveuse</b> : le niveau monte avec le prix (plus bas des 10 derniers jours) et on vend quand une clôture passe dessous. Un objectif fixe a été testé : il réduit le gain sur 5 ans de +161 % à entre +15 % et +111 %.</p>
      <details class="order" ${blocked?'':'open'}><summary>Voir l’ordre à passer ${I.chev}</summary><div><ol class="steps">
       <li><span>Sur OKX, onglet <b>Spot</b>, ouvre <b>${esc(s.s)}/USDT</b>.</span></li>
       <li><span>Achète <b>${fq(z.q)} ${esc(s.s)}</b> si le prix est sous <b>${fp(lim)}</b>. Au-dessus, on laisse passer.</span></li>
@@ -450,16 +455,19 @@ function trades(D){
     <svg class="ring" width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="22" fill="none" stroke="var(--greybg)" stroke-width="6"/><circle cx="28" cy="28" r="22" fill="none" stroke="${ok?'var(--up)':'var(--acc)'}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C*pct} ${C}" transform="rotate(-90 28 28)"/><text x="28" y="33" text-anchor="middle" style="font:800 14px var(--font);fill:var(--ink)">${Math.min(pc.length,GATE)}/${GATE}</text></svg>
     <div style="font-size:14px"><b>${ok?'Entraînement validé':'Entraînement en papier'}</b><div class="mute" style="font-size:13px">${ok?'Gain moyen positif sur tes trades papier : tu peux passer en réel avec 1 % de risque.':pc.length>=GATE?'Gain moyen négatif pour l’instant : continue en papier.':`Fais ${GATE} trades papier (environ 5 mois au rythme de la méthode) avant de risquer de l’argent.`}</div></div></div>`;
   const op=S.trades.filter(t=>t.status==='open'&&!!t.paper===(S.mode==='paper'));
-  $('#open').innerHTML=op.length?op.map(t=>{const r=evalPos(t);const cur=r.exit?r.exit.x:r.p;const pl=cur!=null?pnl(t,cur):null;
-    const lv=[t.stop,r.exitLvl,t.e,cur].filter(v=>v!=null&&isFinite(v));const mn=Math.min(...lv),mx=Math.max(...lv);const X=v=>((v-mn)/((mx-mn)||1)*92+4).toFixed(1)+'%';
-    const act=r.missing?'<span class="badge b-warn">Plus suivie par le scan : vérifie-la sur OKX</span>':r.exit?`<span class="badge b-down">VENDS : ${esc(r.exit.why)}</span>`:`<span class="badge b-acc">Garde · SL ${fp(t.stop)} · TP suiveur : vends si une clôture passe sous ${fp(Math.max(r.exitLvl,t.stop))}</span>`;
+  $('#open').innerHTML=op.length?op.map(t=>{const r=evalPos(t);const cur=r.exit?r.exit.x:r.p;const pl=cur!=null?pnl(t,cur,r.units):null;const nU=(r.units||[]).length;const pend=!t.paper&&!r.exit&&nU-1>(t.ack||0)?r.units[(t.ack||0)+1]:null;
+    const lv=[r.stop,r.exitLvl,t.e,cur,r.next].filter(v=>v!=null&&isFinite(v));const mn=Math.min(...lv),mx=Math.max(...lv);const X=v=>((v-mn)/((mx-mn)||1)*92+4).toFixed(1)+'%';
+    const act=r.missing?'<span class="badge b-warn">Plus suivie par le scan : vérifie-la sur OKX</span>':r.exit?`<span class="badge b-down">VENDS : ${esc(r.exit.why)}</span>`:`<span class="badge b-acc">Garde · SL ${fp(r.stop)} · TP suiveur : vends si une clôture passe sous ${fp(Math.max(r.exitLvl,r.stop))}</span>`;
+    const ent=`<div class="chips"><span class="badge ${nU>1?'b-up':'b-grey'}">${nU}/${1+PYR} entrées</span>${r.next&&!r.exit?`<span class="badge b-grey">prochain renfort si clôture ≥ ${fp(r.next)}</span>`:''}</div>`;
+    const pendHtml=pend?`<div style="background:var(--upbg);border-radius:12px;padding:10px 12px;font-size:13.5px"><b class="up">RENFORCE n° ${(t.ack||0)+1}</b> <span class="mute">(signal du ${new Date(pend.d).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})})</span> : achète <b>${fq(pend.q)} ${esc(t.s)}</b> (≈ ${fe(pend.q*pend.px/(D.fx||1.16))}) si le prix est sous <b>${fp(pend.px*(1+CHASE))}</b>, puis remonte le SL de <b>toute</b> la position à <b>${fp(pend.stop)}</b>.<div class="btns" style="margin-top:8px"><button class="pri" data-ack="${t.id}">C’est fait</button></div></div>`:'';
     return `<div class="pos ${r.exit&&!t.paper?'alert':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div class="coin">${logo(t.s,40)}<div><div class="nm">${esc(t.s)}</div><div class="sb">achat le ${new Date(t.day).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})} à ${fp(t.e)}${t.paper?' · papier':''}</div></div></div>
       <div style="text-align:right"><b class="num ${pl&&pl.eur>=0?'up':'down'}" style="font-size:18px;white-space:nowrap">${pl?fe(pl.eur):'–'}</b><div class="mute num" style="font-size:12.5px;white-space:nowrap">${pl?fpc((cur/t.e-1)*100):''}</div></div></div>
-      ${r.missing?'':`<div class="range" aria-hidden="true"><div class="ln"></div><span class="mk" style="left:${X(t.stop)};background:var(--down)"></span><span class="lb" style="left:${X(t.stop)}">SL</span>${r.exitLvl?`<span class="mk" style="left:${X(r.exitLvl)};background:var(--warn)"></span><span class="lb" style="left:${X(r.exitLvl)};top:0">TP suiveur</span>`:''}<span class="mk" style="left:${X(t.e)};background:var(--acc)"></span><span class="lb" style="left:${X(t.e)}">achat</span>${cur!=null?`<span class="cur" style="left:${X(cur)}"></span>`:''}</div>`}
-      <div>${act}</div>
+      ${r.missing?'':`<div class="range" aria-hidden="true"><div class="ln"></div><span class="mk" style="left:${X(r.stop)};background:var(--down)"></span><span class="lb" style="left:${X(r.stop)}">SL</span>${r.next&&!r.exit?`<span class="mk" style="left:${X(r.next)};background:var(--up)"></span><span class="lb" style="left:${X(r.next)};top:0">renfort</span>`:''}${r.exitLvl?`<span class="mk" style="left:${X(r.exitLvl)};background:var(--warn)"></span><span class="lb" style="left:${X(r.exitLvl)};top:0">TP suiveur</span>`:''}<span class="mk" style="left:${X(t.e)};background:var(--acc)"></span><span class="lb" style="left:${X(t.e)}">achat</span>${cur!=null?`<span class="cur" style="left:${X(cur)}"></span>`:''}</div>`}
+      <div>${act}</div>${ent}${pendHtml}
       <div class="btns">${r.exit&&!t.paper?`<button class="pri" data-cl="${t.id}" data-x="${r.exit.x}" data-why="${esc(r.exit.why)}">J’ai vendu</button>`:''}<button data-cl="${t.id}" data-man="1">Vendu à un autre prix</button><button class="ghost" data-del="${t.id}">Supprimer</button></div></div>`}).join('')
    :`<div class="empty">${I.sleep}<div>${S.mode==='paper'?'Aucune position papier. Quand un achat est possible, clique sur « Trade papier » : le site la suit tout seul.':'Aucune position réelle.'}</div></div>`;
-  document.querySelectorAll('[data-cl]').forEach(b=>b.onclick=()=>{const t=S.trades.find(x=>x.id===b.dataset.cl);let x=+b.dataset.x;if(b.dataset.man){const v=prompt('Prix de vente en $ ?');x=+String(v||'').replace(',','.');if(!(x>0))return}closeT(t,x,b.dataset.why||'vente manuelle');render()});
+  document.querySelectorAll('[data-cl]').forEach(b=>b.onclick=()=>{const t=S.trades.find(x=>x.id===b.dataset.cl);let x=+b.dataset.x;if(b.dataset.man){const v=prompt('Prix de vente en $ ?');x=+String(v||'').replace(',','.');if(!(x>0))return}closeT(t,x,b.dataset.why||'vente manuelle',null,evalPos(t).units);render()});
+  document.querySelectorAll('[data-ack]').forEach(b=>b.onclick=()=>{const t=S.trades.find(x=>x.id===b.dataset.ack);t.ack=(t.ack||0)+1;save();render()});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(!confirm('Supprimer cette position du journal ?'))return;S.trades=S.trades.filter(x=>x.id!==b.dataset.del);save();render()});
   const cl=S.trades.filter(t=>t.status==='closed'&&!!t.paper===(S.mode==='paper')).sort((a,b)=>b.closedDay.localeCompare(a.closedDay));
   const n=cl.length,w=cl.filter(t=>t.eur>0).length,sum=cl.reduce((a,t)=>a+t.eur,0);
@@ -470,11 +478,11 @@ function trades(D){
 
 function how(D){const fx=D.fx||1.16;$('#cap').value=S.set.cap;$('#risk').value=S.set.risk;
   $('#riskNote').textContent=`Tu risques environ ${fe(S.set.cap*Math.min(Math.max(+S.set.risk||1,.25),2)/100)} par trade. Recommandé : 1 %, jamais plus de 2 %. Taux du jour : 1 € = ${fx.toFixed(3).replace('.',',')} $.`;
-  if(!$('#bt').innerHTML){const B=[[2000,2000],[1948,2512],[2572,2334],[2472,1931],[2472,1564],[2472,1768],[2511,1929],[2418,1581],[2418,1207],[2418,831],[2418,977],[2418,821],[2343,788],[2343,851],[2271,677],[2271,690],[2345,927],[2355,981],[2323,1125],[2317,1127],[2330,1079],[2382,1257],[2454,1233],[2382,1068],[2356,1089],[2419,1226],[3054,1534],[3180,1789],[3243,1707],[3373,2136],[3448,2538],[3333,2601],[3233,2742],[3055,2725],[3049,2626],[2992,2412],[2900,2423],[2978,2748],[2994,3578],[3539,4156],[3520,3874],[3415,4010],[3387,3441],[3387,3432],[3563,4266],[3451,4330],[3520,4811],[3667,4863],[3653,4669],[4632,4621],[5284,4291],[5093,3797],[5093,3733],[5093,2839],[5093,2804],[5093,2912],[5095,3286],[4904,2595],[4904,2596],[4904,2636],[5323,3271],[5226,3357]];
-    const W=640,H=200,P=6,mx=5600,mn=500;const x=i=>P+i/(B.length-1)*(W-2*P),y=v=>P+(1-(v-mn)/(mx-mn))*(H-2*P-16);
+  if(!$('#bt').innerHTML){const B=[[2000,2000,2000],[1871,1910,1973],[1838,1932,2512],[1750,2009,2334],[1738,1925,1931],[1738,1925,1564],[1738,1925,1768],[1766,1957,1929],[1688,1885,1581],[1688,1885,1207],[1688,1885,831],[1688,1885,977],[1688,1885,821],[1640,1827,788],[1640,1827,851],[1592,1771,677],[1592,1771,690],[1641,1857,927],[1568,1847,981],[1548,1822,1125],[1549,1818,1127],[1560,1846,1079],[1578,1888,1257],[1654,1933,1233],[1548,1834,1068],[1548,1814,1089],[1574,1844,1226],[2110,2176,1534],[2689,2268,1789],[2714,2388,1707],[2734,2468,2136],[2554,2531,2538],[2457,2506,2601],[2425,2487,2742],[2336,2392,2725],[2344,2400,2626],[2246,2358,2412],[2178,2285,2423],[2348,2400,2748],[2319,2379,3578],[3148,2811,4156],[3236,2796,3874],[3152,2741,4010],[3152,2741,3441],[3152,2741,3432],[3374,2883,4266],[3017,2772,4330],[3197,2923,4811],[3367,2963,4863],[3255,3005,4669],[5618,3363,4621],[7004,4752,4291],[6605,4149,3797],[6605,4149,3733],[6605,4149,2839],[6605,4149,2804],[6605,4149,2912],[6876,4253,3286],[6394,4038,2595],[6394,3999,2596],[6394,3999,2636],[6859,4341,3271],[6644,4400,3514],[6786,4317,3357]];
+    const W=640,H=200,P=6,mx=7400,mn=500;const x=i=>P+i/(B.length-1)*(W-2*P),y=v=>P+(1-(v-mn)/(mx-mn))*(H-2*P-16);
     const pl=k=>B.map((d,i)=>x(i).toFixed(1)+','+y(d[k]).toFixed(1)).join(' ');
     const yrs=[['2022',4],['2023',16],['2024',28],['2025',40],['2026',52]].map(([l,i])=>`<text x="${x(i)}" y="${H-2}" text-anchor="middle" style="font:600 11px var(--font);fill:var(--mute)">${l}</text>`).join('');
-    $('#bt').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Backtest : la méthode termine à 5 226 euros contre 3 357 euros pour le BTC"><defs><linearGradient id="gb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--up)" stop-opacity=".22"/><stop offset="1" stop-color="var(--up)" stop-opacity="0"/></linearGradient></defs><line x1="${P}" x2="${W-P}" y1="${y(2000)}" y2="${y(2000)}" stroke="var(--line)"/><polygon points="${x(0)},${y(mn)} ${pl(0)} ${x(B.length-1)},${y(mn)}" fill="url(#gb)"/><polyline fill="none" stroke="var(--grey)" stroke-width="2" stroke-dasharray="5 4" points="${pl(1)}"/><polyline fill="none" stroke="var(--up)" stroke-width="2.5" stroke-linejoin="round" points="${pl(0)}"/>${yrs}</svg>`}}
+    $('#bt').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Backtest : avec renforts la méthode termine à 6 786 euros, sans renfort à 4 317 euros, le BTC conservé à 3 357 euros"><defs><linearGradient id="gb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--up)" stop-opacity=".22"/><stop offset="1" stop-color="var(--up)" stop-opacity="0"/></linearGradient></defs><line x1="${P}" x2="${W-P}" y1="${y(2000)}" y2="${y(2000)}" stroke="var(--line)"/><polygon points="${x(0)},${y(mn)} ${pl(0)} ${x(B.length-1)},${y(mn)}" fill="url(#gb)"/><polyline fill="none" stroke="var(--grey)" stroke-width="2" stroke-dasharray="5 4" points="${pl(2)}"/><polyline fill="none" stroke="var(--acc)" stroke-width="2" stroke-linejoin="round" points="${pl(1)}"/><polyline fill="none" stroke="var(--up)" stroke-width="2.5" stroke-linejoin="round" points="${pl(0)}"/>${yrs}</svg>`}}
 
 function stocksView(D){const K=D.stocks;$('#stkCap').value=LS.get('stkCap',1000);
   if(!K){$('#stkMission').innerHTML=`<div class="ico o">${I.bell}</div><div><div class="t">Données actions indisponibles</div><div class="s">Le scan des actions a échoué cette nuit. Réessaie demain.</div></div>`;['#stkList','#stkLive','#stkRank','#stkMoves'].forEach(x=>$(x).innerHTML='');$('#stkSub').textContent='';return}
@@ -497,7 +505,7 @@ function stocksView(D){const K=D.stocks;$('#stkCap').value=LS.get('stkCap',1000)
 function take(sym,paper){const D=S.data;const s=D.signals.find(x=>x.s===sym);if(!s)return;let e=s.p;
   if(!paper){const v=prompt(`Prix d'achat réel de ${sym} en $ ?`,String(s.p));e=+String(v||'').replace(',','.');if(!(e>0))return}
   const z=size(e,s.stop);let q=z.q;if(!paper){const v=prompt('Quantité achetée ?',String(+z.q.toPrecision(5)));q=+String(v||'').replace(',','.');if(!(q>0))return}
-  S.trades.push({id:sym+'-'+Date.now(),s:sym,paper,day:D.day,e,stop:s.stop,q,fx:D.fx||1.16,status:'open',openedAt:new Date().toISOString()});save();
+  S.trades.push({id:sym+'-'+Date.now(),s:sym,paper,day:D.day,e,stop:s.stop,atr0:s.atr,q,fx:D.fx||1.16,status:'open',openedAt:new Date().toISOString()});save();
   if(paper!==(S.mode==='paper')){S.mode=paper?'paper':'real';LS.set('mode',S.mode)}go('trades')}
 
 /* ---------- événements ---------- */
