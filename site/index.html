@@ -177,7 +177,7 @@ nav.bottom .dotn{position:absolute;top:2px;left:calc(50% + 8px);min-width:16px;h
   <!-- AUJOURD'HUI -->
   <section class="view" id="v-home">
     <div class="card onb" id="onb" hidden>
-      <div class="ctitle"><h2>Bienvenue sur ton radar</h2><button class="ghost" id="onbX" aria-label="Fermer">Fermer</button></div>
+      <div class="ctitle"><h2>Bienvenue sur ton radar</h2><button class="ghost" id="onbX" aria-label="Masquer l’introduction (bouton ? en haut pour la revoir)">Masquer</button></div>
       <div class="how">
         <div><span class="n">1</span><b>Chaque nuit, le site scanne</b><p>Toutes les cryptos de Binance sont analysées après la clôture de 2 h du matin.</p></div>
         <div><span class="n">2</span><b>Le matin, tu regardes</b><p>La carte « Ta mission du jour » te dit s'il y a quelque chose à faire. La plupart des jours : rien.</p></div>
@@ -525,5 +525,6 @@ $('#showOnb').onclick=()=>{LS.set('onbDone',false);go('home')};
 nav();
 fetch('data/signals.json?t='+Date.now()).then(r=>r.json()).then(d=>{S.data=d;render()}).catch(()=>{$('#mission').innerHTML=`<div class="ico o">${I.bell}</div><div><div class="t">Données indisponibles</div><div class="s">Le scan n’a pas encore tourné ou a échoué. Réessaie dans quelques minutes.</div></div>`;$('#scanInfo').textContent=''});
 </script>
+<script src="app2.js"></script>
 </body>
 </html>
