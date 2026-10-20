@@ -1,0 +1,37 @@
+name: Scan quotidien
+
+on:
+  schedule:
+    - cron: '20 0 * * *'   # chaque nuit, 20 min après la clôture journalière (00:00 UTC)
+  workflow_dispatch:        # bouton « Run workflow » pour lancer un scan à la main
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Scanner le marché
+        run: node scan.mjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
