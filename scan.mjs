@@ -78,7 +78,8 @@ async function yahoo(sym) {
       if (!r.ok) continue;
       const j = await r.json(); const res = j.chart?.result?.[0]; if (!res) continue;
       const t = res.timestamp, a = res.indicators.adjclose?.[0]?.adjclose || res.indicators.quote[0].close;
-      const out = []; for (let i = 0; i < t.length; i++) if (a[i] != null) out.push([new Date(t[i] * 1000).toISOString().slice(0, 10), a[i]]);
+      const q = res.indicators.quote[0];
+      const out = []; for (let i = 0; i < t.length; i++) if (a[i] != null) { const f = q.close[i] ? a[i] / q.close[i] : 1; out.push([new Date(t[i] * 1000).toISOString().slice(0, 10), a[i], (q.open?.[i] ?? q.close[i]) * f, (q.high?.[i] ?? q.close[i]) * f, (q.low?.[i] ?? q.close[i]) * f, q.volume?.[i] || 0]); }
       return out;
     } catch (e) { /* hôte suivant */ }
   }
@@ -95,6 +96,31 @@ async function spusHoldings() {
   } catch (e) { /* liste de secours */ }
   return { list: SPUS_FALLBACK.split(' ').map(s => ({ s, name: s })), src: 'liste de secours' };
 }
+
+// ---------- Swing actions : cassure 20 séances ou repli confirmé (méthode « Swing actions ») ----------
+const EU_SWING = [['ASML.AS', 'ASML'], ['SU.PA', 'Schneider Electric'], ['AI.PA', 'Air Liquide'], ['SAP.DE', 'SAP'], ['NOVO-B.CO', 'Novo Nordisk'], ['OR.PA', "L'Oréal"], ['RMS.PA', 'Hermès'], ['DSY.PA', 'Dassault Systèmes'], ['STMPA.PA', 'STMicroelectronics'], ['TTE.PA', 'TotalEnergies'], ['IFX.DE', 'Infineon']];
+function wilder(k) {
+  const c = k.map(x => x[1]), h = k.map(x => x[3]), l = k.map(x => x[4]), v = k.map(x => x[5]); const n = c.length, i = n - 1;
+  let g = 0, lo = 0; const rs = []; for (let j = 1; j <= 14; j++) { const d = c[j] - c[j - 1]; d > 0 ? g += d : lo -= d; } g /= 14; lo /= 14;
+  for (let j = 15; j < n; j++) { const d = c[j] - c[j - 1]; g = (g * 13 + Math.max(d, 0)) / 14; lo = (lo * 13 + Math.max(-d, 0)) / 14; rs.push(100 - 100 / (1 + g / (lo || 1e-12))); }
+  let atr = h[0] - l[0]; for (let j = 1; j < n; j++) { const tr = Math.max(h[j] - l[j], Math.abs(h[j] - c[j - 1]), Math.abs(l[j] - c[j - 1])); atr = (atr * 13 + tr) / 14; }
+  const s50 = sma(c, 50)[i], s200 = sma(c, 200)[i];
+  const hi = Math.max(...h.slice(i - 20, i)), hiNext = Math.max(...h.slice(i - 19, i + 1));
+  const v20 = v.slice(i - 20, i).reduce((a, b) => a + b, 0) / 20;
+  const rsiMin5 = Math.min(...rs.slice(-6));
+  return { p: c[i], d1: c[i] / c[i - 1] - 1, s50, s200, rsi: rs.at(-1), atr, hi, hiNext, brk: c[i] > hi && c[i - 1] <= hi, vr: v20 ? v[i] / v20 : null,
+    dip: rsiMin5 < 40, rev: c[i] > h[i - 1], hLast: h[i], low10: Math.min(...l.slice(-10)), trend: c[i] > s50 && s50 > s200, up: c[i] > s200 && s50 > s200,
+    turnover: v.slice(-20).reduce((a, b) => a + b, 0) / 20 * c[i], hi52: Math.max(...h.slice(-252)), lo52: Math.min(...l.slice(-252)), spark: c.slice(-60).map(x => +x.toPrecision(5)), day: k[i][0] };
+}
+function swingSetup(A, mkOn) {
+  if (!A) return null;
+  if (mkOn && A.trend && A.brk && (A.vr ?? 0) >= 1.5 && A.rsi < 75) { const st = A.p - 2 * A.atr; return { set: 'bo', now: true, entry: A.p, stop: st, tgt: A.p + 3 * (A.p - st) }; }
+  if (mkOn && A.up && A.dip && A.rev) { const st = Math.min(A.low10 - 0.5 * A.atr, A.p - 1.2 * A.atr); const d = (A.p - st) / A.p; if (d >= 0.015 && d <= 0.15) return { set: 'pb', now: true, entry: A.p, stop: st, tgt: null }; }
+  if (A.up && A.dip) return { set: 'pb', now: false, entry: Math.max(A.p, A.hLast), stop: Math.min(A.low10, A.p - 1.5 * A.atr) - 0.5 * A.atr, tgt: null, dist: Math.max(0, (A.hLast / A.p - 1) * 100) };
+  if (A.trend) { const dist = (A.hiNext / A.p - 1) * 100; const e = Math.max(A.p, A.hiNext); return { set: 'bo', now: false, entry: e, stop: e - 2 * A.atr, tgt: e + 6 * A.atr, dist }; }
+  return null;
+}
+
 async function stocks() {
   const { list, src } = await spusHoldings();
   const spy = await yahoo('SPY'); if (!spy || spy.length < 300) throw new Error('SPY indisponible');
@@ -106,8 +132,20 @@ async function stocks() {
     if (!k || k.length < 260) continue;
     const c = Array(days.length).fill(null); for (const [d, v] of k) { const i = di.get(d); if (i != null) c[i] = v; }
     for (let i = 1; i < c.length; i++) if (c[i] == null && c[i - 1] != null) c[i] = c[i - 1];
-    S[x.s] = { name: x.name, c, m200: sma(c.map(v => v ?? 0), 200) };
+    S[x.s] = { name: x.name, c, m200: sma(c.map(v => v ?? 0), 200), k };
   }
+  const spyM50 = sma(spyC, 50); const usOn = spyC.at(-1) > spyM.at(-1) && spyM50.at(-1) > spyM.at(-1);
+  let euOn = null; try { const sx = await yahoo('^STOXX'); if (sx && sx.length > 210) { const xc = sx.map(x => x[1]); euOn = xc.at(-1) > sma(xc, 200).at(-1) && sma(xc, 50).at(-1) > sma(xc, 200).at(-1); } } catch (e) { /* Europe inconnue */ }
+  const EUK = {}; for (const [s, name] of EU_SWING) { const k = await yahoo(s); await sleep(60); if (k && k.length > 260) EUK[s] = { name, k }; }
+  const all = {}; const swSig = [], swNear = [];
+  for (const [s, v] of [...Object.entries(S), ...Object.entries(EUK)]) {
+    const eu = !S[s]; const A = wilder(v.k); const mk = eu ? euOn : usOn; const st = swingSetup(A, mk !== false);
+    const o = { n: v.name, eu, halal: eu ? null : true, p: A.p, d1: A.d1, s50: A.s50, s200: A.s200, rsi: A.rsi, atr: A.atr, trend: A.trend, up: A.up, hi52: A.hi52, lo52: A.lo52, liq: A.turnover, spark: A.spark, sw: st, day: A.day };
+    all[s] = o;
+    if (st?.now && A.turnover > 1e7) swSig.push({ s, set: st.set, entry: st.entry, stop: st.stop, tgt: st.tgt });
+    else if (st && !st.now && st.dist != null && st.dist <= 3 && A.turnover > 1e7) swNear.push({ s, set: st.set, dist: st.dist, entry: st.entry });
+  }
+  swNear.sort((a, b) => a.dist - b.dist);
   const monthStart = d => { const m = d.slice(0, 7); return days.findIndex(x => x.slice(0, 7) === m); };
   const pick = i => {
     const on = spyC[i] > spyM[i];
@@ -120,6 +158,7 @@ async function stocks() {
   const iPrev = days.findIndex(x => x.slice(0, 7) === prevMonth);
   const cur = pick(iCur), prev = iPrev >= 0 ? pick(iPrev) : { list: [] }, now = pick(last);
   const curSet = new Set(cur.list.map(x => x.s)), prevSet = new Set(prev.list.map(x => x.s));
+  now.rank.forEach((r, i) => { if (all[r.s]) { all[r.s].mom = r.mom; all[r.s].rank = i + 1; all[r.s].inList = curSet.has(r.s); } });
   // suivi en direct du portefeuille modèle depuis le 1er novembre 2026 (aucune optimisation après cette date)
   const LIVE = '2026-11-01'; const live = [];
   let eq = 100, held = [];
@@ -135,7 +174,9 @@ async function stocks() {
     list: cur.list.map(x => ({ ...x, p: S[x.s].c[last], since: S[x.s].c[last] / S[x.s].c[iCur] - 1, spark: S[x.s].c.slice(-60).map(v => +(+v).toPrecision(5)) })),
     adds: cur.list.filter(x => !prevSet.has(x.s)).map(x => x.s), drops: prev.list.filter(x => !curSet.has(x.s)).map(x => x.s),
     ranking: now.rank.slice(0, 30).map(x => ({ s: x.s, name: x.name, mom: x.mom, up: x.up, p: x.p, inList: curSet.has(x.s) })),
-    live
+    live,
+    swing: { us: usOn, eu: euOn, sig: swSig, near: swNear.slice(0, 15) },
+    all
   };
 }
 
