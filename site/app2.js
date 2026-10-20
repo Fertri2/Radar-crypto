@@ -143,7 +143,7 @@
   $('#anaF').onsubmit = e => { e.preventDefault(); analyse($('#anaQ').value); };
   async function analyse(raw) {
     const q = String(raw || '').trim(); if (!q) return; const up = q.toUpperCase(); const all = S.data?.stocks?.all || {}; const out = $('#anaOut');
-    let sk = all[up] ? up : Object.keys(all).find(k => all[k].n && all[k].n.toLowerCase().includes(q.toLowerCase()) && q.length > 2);
+    const isC = (S.data?.market || []).some(m => m.s === up); let sk = all[up] ? up : isC ? null : Object.keys(all).find(k => k.split('.')[0] === up) || (q.length > 3 ? Object.keys(all).find(k => (all[k].n || '').toLowerCase().split(/[^a-z0-9à-ÿ]+/).some(w => w.startsWith(q.toLowerCase()))) : null);
     if (sk) { anaLast = { kind: 'stock', s: sk }; out.innerHTML = stockHtml(sk, all[sk]); return; }
     const sym = up.replace(/USDT$/, '').replace(/[^A-Z0-9]/g, ''); out.innerHTML = '<p class="note">Lecture des cours journaliers…</p>';
     const k = await bnKlines(sym, 220); if (!k || k.length < 25) { out.innerHTML = `<div class="empty">« ${esc(q)} » introuvable. Cryptos : symbole Binance (ex. SOL). Actions : uniquement les ${Object.keys(all).length} actions suivies chaque nuit (SPUS + grandes valeurs européennes).</div>`; return; }
