@@ -201,7 +201,7 @@ nav.bottom .dotn{position:absolute;top:2px;left:calc(50% + 8px);min-width:16px;h
     </div>
     <div class="card">
       <div class="ctitle"><h2>Sur le point de casser</h2><span class="sub">à moins de 5 %</span></div>
-      <p class="note" style="margin:-6px 0 8px">Tu peux poser une alerte de prix sur OKX au niveau indiqué. La cassure ne compte qu'à la clôture de 2 h du matin.</p>
+      <p class="note" style="margin:-6px 0 8px">Tu peux poser une alerte de prix sur OKX au niveau indiqué. La cassure ne compte qu'à la clôture de 2 h du matin. SL et TP sont des estimations : les valeurs exactes s'affichent le jour de la cassure.</p>
       <div class="list" id="near"></div>
     </div>
   </section>
@@ -385,7 +385,7 @@ function home(D,stale){
     const why=held?'déjà en position':!D.tradeable?'marché fermé':'plus de place (3 max)';
     return `<div class="sig ${blocked?'off':''}"><div class="hd"><div class="coin">${logo(s.s,40)}<div><div class="nm">${esc(s.s)}</div><div class="sb">+${Math.round(s.r30*100)} % sur 30 jours${s.okx===false?' · <span class="down">pas sur OKX</span>':''}</div></div></div><span class="badge ${blocked?'b-grey':'b-up'}">${blocked?why:'Achat possible'}</span></div>
      ${L?spark(L.hist.slice(-45).map(x=>x[3]),{w:320,h:70,full:true,lines:[{v:s.stop,c:'var(--down)'}]}):''}
-     <div class="nums"><div><span>Prix</span><b class="num">${fp(s.p)}</b></div><div><span>Stop de sécurité</span><b class="num down">${fp(s.stop)}</b></div><div><span>Montant à investir</span><b class="num">${fe(z.eur)}</b></div><div><span>Perte max si stop</span><b class="num down">${fe(-z.loss)}</b></div></div>
+     <div class="nums"><div><span>Prix</span><b class="num">${fp(s.p)}</b></div><div><span>Stop de sécurité</span><b class="num down">${fp(s.stop)}</b></div><div><span>Montant à investir</span><b class="num">${fe(z.eur)}</b></div><div><span>Perte max si stop</span><b class="num down">${fe(-z.loss)}</b></div><div><span>TP suiveur</span><b class="num" style="color:var(--warn)">${fp(Math.max(s.lo10,s.stop))}</b><span>démarre au SL, puis monte</span></div><div><span>Objectif fixe</span><b>aucun</b></div></div><p class="note" style="margin:0">Le TP est une <b>sortie suiveuse</b> : le niveau monte avec le prix (plus bas des 10 derniers jours) et on vend quand une clôture passe dessous. Un objectif fixe a été testé : il réduit le gain sur 5 ans de +161 % à entre +15 % et +111 %.</p>
      <details class="order" ${blocked?'':'open'}><summary>Voir l’ordre à passer ${I.chev}</summary><div><ol class="steps">
       <li><span>Sur OKX, onglet <b>Spot</b>, ouvre <b>${esc(s.s)}/USDT</b>.</span></li>
       <li><span>Achète <b>${fq(z.q)} ${esc(s.s)}</b> si le prix est sous <b>${fp(lim)}</b>. Au-dessus, on laisse passer.</span></li>
@@ -397,7 +397,7 @@ function home(D,stale){
   /* proches */
   const nr=D.near||[];const mk=Object.fromEntries((D.market||[]).map(m=>[m.s,m]));
   $('#near').innerHTML=nr.length?nr.map(n=>`<div class="li">${logo(n.s)}<div class="mid"><div style="display:flex;align-items:center;gap:8px"><b>${esc(n.s)}</b><span class="badge b-warn num" style="padding:2px 8px;font-size:11.5px">à ${fpc(n.dist).replace('+','')}</span></div>
-     <div class="prog"><span style="width:${Math.max(8,100-n.dist*20)}%"></span></div><div class="mute" style="font-size:12.5px;margin-top:4px">Alerte à poser : <b class="num" style="color:var(--ink)">${fp(n.trigger)}</b> · prix ${fp(n.p)}${n.okx===false?' · pas sur OKX':''}</div></div>
+     <div class="prog"><span style="width:${Math.max(8,100-n.dist*20)}%"></span></div><div class="mute" style="font-size:12.5px;margin-top:4px">Alerte à poser : <b class="num" style="color:var(--ink)">${fp(n.trigger)}</b> · prix ${fp(n.p)}${n.okx===false?' · pas sur OKX':''}</div>${D.levels?.[n.s]?`<div class="mute" style="font-size:12.5px">Si cassure : SL ≈ <b class="num down">${fp(n.trigger-2*D.levels[n.s].atr)}</b> · TP suiveur ≈ <b class="num" style="color:var(--warn)">${fp(Math.max(D.levels[n.s].lo10,n.trigger-2*D.levels[n.s].atr))}</b></div>`:''}</div>
      <div class="right" style="width:72px">${spark(mk[n.s]?.spark,{w:72,h:32})}</div></div>`).join(''):`<div class="empty">${I.sleep}<div>Aucune crypto suivie n’est à moins de 5 % de son plus haut des 20 jours.</div></div>`;
 }
 
@@ -423,10 +423,10 @@ function trades(D){
   const op=S.trades.filter(t=>t.status==='open'&&!!t.paper===(S.mode==='paper'));
   $('#open').innerHTML=op.length?op.map(t=>{const r=evalPos(t);const cur=r.exit?r.exit.x:r.p;const pl=cur!=null?pnl(t,cur):null;
     const lv=[t.stop,r.exitLvl,t.e,cur].filter(v=>v!=null&&isFinite(v));const mn=Math.min(...lv),mx=Math.max(...lv);const X=v=>((v-mn)/((mx-mn)||1)*92+4).toFixed(1)+'%';
-    const act=r.missing?'<span class="badge b-warn">Plus suivie par le scan : vérifie-la sur OKX</span>':r.exit?`<span class="badge b-down">VENDS : ${esc(r.exit.why)}</span>`:`<span class="badge b-acc">Garde · vends si une clôture passe sous ${fp(r.exitLvl)}</span>`;
+    const act=r.missing?'<span class="badge b-warn">Plus suivie par le scan : vérifie-la sur OKX</span>':r.exit?`<span class="badge b-down">VENDS : ${esc(r.exit.why)}</span>`:`<span class="badge b-acc">Garde · SL ${fp(t.stop)} · TP suiveur : vends si une clôture passe sous ${fp(Math.max(r.exitLvl,t.stop))}</span>`;
     return `<div class="pos ${r.exit&&!t.paper?'alert':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div class="coin">${logo(t.s,40)}<div><div class="nm">${esc(t.s)}</div><div class="sb">achat le ${new Date(t.day).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})} à ${fp(t.e)}${t.paper?' · papier':''}</div></div></div>
       <div style="text-align:right"><b class="num ${pl&&pl.eur>=0?'up':'down'}" style="font-size:18px;white-space:nowrap">${pl?fe(pl.eur):'–'}</b><div class="mute num" style="font-size:12.5px;white-space:nowrap">${pl?fpc((cur/t.e-1)*100):''}</div></div></div>
-      ${r.missing?'':`<div class="range" aria-hidden="true"><div class="ln"></div><span class="mk" style="left:${X(t.stop)};background:var(--down)"></span><span class="lb" style="left:${X(t.stop)}">stop</span>${r.exitLvl?`<span class="mk" style="left:${X(r.exitLvl)};background:var(--warn)"></span><span class="lb" style="left:${X(r.exitLvl)};top:0">sortie</span>`:''}<span class="mk" style="left:${X(t.e)};background:var(--acc)"></span><span class="lb" style="left:${X(t.e)}">achat</span>${cur!=null?`<span class="cur" style="left:${X(cur)}"></span>`:''}</div>`}
+      ${r.missing?'':`<div class="range" aria-hidden="true"><div class="ln"></div><span class="mk" style="left:${X(t.stop)};background:var(--down)"></span><span class="lb" style="left:${X(t.stop)}">SL</span>${r.exitLvl?`<span class="mk" style="left:${X(r.exitLvl)};background:var(--warn)"></span><span class="lb" style="left:${X(r.exitLvl)};top:0">TP suiveur</span>`:''}<span class="mk" style="left:${X(t.e)};background:var(--acc)"></span><span class="lb" style="left:${X(t.e)}">achat</span>${cur!=null?`<span class="cur" style="left:${X(cur)}"></span>`:''}</div>`}
       <div>${act}</div>
       <div class="btns">${r.exit&&!t.paper?`<button class="pri" data-cl="${t.id}" data-x="${r.exit.x}" data-why="${esc(r.exit.why)}">J’ai vendu</button>`:''}<button data-cl="${t.id}" data-man="1">Vendu à un autre prix</button><button class="ghost" data-del="${t.id}">Supprimer</button></div></div>`}).join('')
    :`<div class="empty">${I.sleep}<div>${S.mode==='paper'?'Aucune position papier. Quand un achat est possible, clique sur « Trade papier » : le site la suit tout seul.':'Aucune position réelle.'}</div></div>`;
