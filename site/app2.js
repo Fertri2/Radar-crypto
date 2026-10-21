@@ -265,8 +265,76 @@
   const CTX = { home: 'crypto', trades: 'crypto', mkt: 'ana', stk: 'swing', pf: 'pf' };
   help.onclick = () => { if (CTX[S.view]) howShow(CTX[S.view]); go('how'); };
 
+  /* ---------- journal des mouvements : achat, vente, dépôt, retrait, avec impact sur le stablecoin ---------- */
+  const STABLES = ['USDT', 'USDC', 'FDUSD', 'EURC'];
+  const MV = { buy: ['Achat', 'b-up'], sell: ['Vente', 'b-down'], in: ['Dépôt', 'b-acc'], out: ['Retrait', 'b-grey'] };
+  let mvType = 'buy';
+  const mvCard = document.createElement('div'); mvCard.className = 'card'; mvCard.id = 'mvCard';
+  mvCard.innerHTML = `<div class="ctitle"><h2>Nouveau mouvement</h2><span class="sub">met à jour tes quantités</span></div>
+    <div class="seg" role="group" aria-label="Type de mouvement" id="mvT" style="display:flex;width:100%">${Object.entries(MV).map(([k, v]) => `<button data-mvt="${k}" style="flex:1">${v[0]}</button>`).join('')}</div>
+    <form id="mvF" autocomplete="off" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end">
+      <label class="f">Crypto<input id="mvS" list="mvL" placeholder="ex. SOL" required style="text-transform:uppercase"><datalist id="mvL"></datalist></label>
+      <label class="f">Quantité<input id="mvQ" type="text" inputmode="decimal" placeholder="0" required></label>
+      <label class="f">Prix unitaire ($)<input id="mvP" type="text" inputmode="decimal" placeholder="prix du jour"></label>
+      <label class="f" id="mvSL">Payé avec<select id="mvC">${STABLES.map(s => `<option>${s}</option>`).join('')}<option value="">Aucun (hors stablecoin)</option></select></label>
+    </form>
+    <div id="mvPrev" style="margin-top:12px"></div>
+    <div class="btns" style="margin-top:12px"><button class="pri" id="mvOk">Enregistrer</button></div>`;
+  const histCard = document.createElement('div'); histCard.className = 'card'; histCard.id = 'histCard';
+  histCard.innerHTML = `<div class="ctitle"><h2>Historique des mouvements</h2><span class="sub" id="mvSub"></span></div><div class="list" id="mvList"></div>`;
+  const mvCss = document.createElement('style'); mvCss.textContent = '#mvF input,#mvF select{font:500 15px var(--font);padding:9px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surf2);color:var(--ink);width:100%;min-width:0;box-sizing:border-box}'; document.head.appendChild(mvCss);
+  const listCard = document.getElementById('pfList').closest('.card'); listCard.after(mvCard); mvCard.after(histCard);
+  const num = v => +String(v || '').replace(/\s/g, '').replace(',', '.');
+  function mvCalc() {
+    const st = PF.get(); const s = $('#mvS').value.trim().toUpperCase(); const q = num($('#mvQ').value); let p = num($('#mvP').value);
+    const a = st.assets.find(x => x.sym === s); if (!(p > 0)) p = price(a || { sym: s })?.p || (S.data?.market || []).find(m => m.s === s)?.p || 0;
+    const cur = (mvType === 'buy' || mvType === 'sell') ? $('#mvC').value : ''; const sa = cur ? st.assets.find(x => x.sym === cur) : null;
+    return { st, s, q, p, a, cur, sa, val: q * p };
+  }
+  function mvPreview() {
+    $('#mvSL').style.display = mvType === 'buy' || mvType === 'sell' ? '' : 'none';
+    document.querySelectorAll('[data-mvt]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mvt === mvType));
+    const c = mvCalc(); if (!c.s || !(c.q > 0)) { $('#mvPrev').innerHTML = '<p class="note">Choisis la crypto et la quantité : je te montre l’effet avant d’enregistrer.</p>'; return; }
+    const q0 = c.a?.qty || 0, sign = mvType === 'buy' || mvType === 'in' ? 1 : -1, q1 = q0 + sign * c.q;
+    const rows = [[c.s, q0, q1]]; if (c.cur) { const s0 = c.sa?.qty || 0; rows.push([c.cur, s0, s0 - sign * c.val]); }
+    const warn = rows.some(r => r[2] < -1e-9) ? '<p class="note down" style="margin-top:6px">Attention : une quantité deviendrait négative. Vérifie la saisie ou ajoute d’abord un dépôt.</p>' : '';
+    $('#mvPrev').innerHTML = `<div style="background:var(--surf2);border-radius:14px;padding:10px 12px">${rows.map(r => `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0"><b>${esc(r[0])}</b><span class="num">${fq(Math.max(r[1], 0))} → <b class="${r[2] >= r[1] ? 'up' : 'down'}">${r[2] < 0 ? '−' + fq(-r[2]) : fq(r[2])}</b></span></div>`).join('')}
+      ${c.p ? `<div class="mute" style="font-size:12.5px;margin-top:4px">Valeur du mouvement : ${fc(c.val)} (${fp(c.p)} l’unité)</div>` : '<div class="mute" style="font-size:12.5px;margin-top:4px">Prix inconnu : indique-le pour suivre le montant investi.</div>'}</div>${warn}`;
+  }
+  function mvSave() {
+    const c = mvCalc(); if (!c.s || !(c.q > 0)) { mvPreview(); $('#mvS').focus(); return; }
+    const st = c.st; let a = c.a; if (!a) { a = { sym: c.s, name: c.s, qty: 0, invested: 0, src: STABLES.includes(c.s) ? 'stable' : 'bn', watch: false }; st.assets.push(a); }
+    const q0 = a.qty || 0, inv0 = a.invested || 0; let dInv = 0, pnl = null;
+    if (mvType === 'buy' || mvType === 'in') dInv = c.val;
+    else { const part = q0 > 0 ? Math.min(1, c.q / q0) : 0; dInv = -inv0 * part; if (mvType === 'sell' && c.p) pnl = c.val + dInv; }
+    a.qty = Math.max(0, q0 + (mvType === 'buy' || mvType === 'in' ? c.q : -c.q)); a.invested = Math.max(0, inv0 + dInv); a.watch = false;
+    let dS = 0; if (c.cur) { let sa = c.sa; if (!sa) { sa = { sym: c.cur, name: c.cur, qty: 0, invested: 0, src: 'stable', watch: false }; st.assets.push(sa); }
+      dS = (mvType === 'buy' ? -1 : 1) * c.val; sa.qty = +(sa.qty + dS).toFixed(6); sa.invested = Math.max(0, (sa.invested || 0) + dS); }
+    st.moves = st.moves || []; st.moves.unshift({ id: Date.now(), d: new Date().toISOString(), t: mvType, s: c.s, q: c.q, p: c.p || null, cur: c.cur || null, dq: a.qty - q0, dInv: a.invested - inv0, dS, pnl });
+    PF.set(st); $('#mvQ').value = ''; $('#mvP').value = ''; mvPreview(); render();
+  }
+  function mvUndo(id) {
+    const st = PF.get(); const m = (st.moves || []).find(x => x.id === id); if (!m) return;
+    const a = st.assets.find(x => x.sym === m.s); if (a) { a.qty = Math.max(0, a.qty - m.dq); a.invested = Math.max(0, a.invested - m.dInv); }
+    if (m.cur) { const sa = st.assets.find(x => x.sym === m.cur); if (sa) { sa.qty = +(sa.qty - m.dS).toFixed(6); sa.invested = Math.max(0, (sa.invested || 0) - m.dS); } }
+    st.moves = st.moves.filter(x => x !== m); PF.set(st); render();
+  }
+  function mvView() {
+    const L = $('#mvL'); const st = PF.get(); L.innerHTML = [...new Set([...st.assets.map(a => a.sym), ...(S.data?.market || []).map(m => m.s)])].map(s => `<option value="${esc(s)}">`).join('');
+    const M = st.moves || []; const pnl = M.reduce((t, m) => t + (m.pnl || 0), 0);
+    $('#mvSub').textContent = M.length ? `${M.length} mouvement(s) · ventes : ${pnl >= 0 ? '+' : ''}${fc(pnl)} réalisés` : '';
+    $('#mvList').innerHTML = M.length ? M.slice(0, 30).map(m => `<div class="li">${logo(m.s, 32)}<div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="badge ${MV[m.t][1]}" style="padding:2px 8px;font-size:11px">${MV[m.t][0]}</span><b>${fq(m.q)} ${esc(m.s)}</b></div>
+      <div class="mute" style="font-size:12px">${new Date(m.d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}${m.p ? ' · ' + fp(m.p) : ''}${m.cur ? ` · ${m.dS < 0 ? '−' : '+'}${fq(Math.abs(m.dS))} ${esc(m.cur)}` : ''}${m.pnl != null ? ` · <span class="${m.pnl >= 0 ? 'up' : 'down'}">${m.pnl >= 0 ? '+' : ''}${fc(m.pnl)}</span>` : ''}</div></div>
+      <button class="ghost" data-mvu="${m.id}" style="padding:6px 10px;font-size:12.5px">Annuler</button></div>`).join('') : '<div class="empty">Aucun mouvement enregistré. Chaque achat, vente, dépôt ou retrait saisi ici met à jour ta quantité et ton stablecoin.</div>';
+    document.querySelectorAll('[data-mvu]').forEach(b => b.onclick = () => { if (b.dataset.c) mvUndo(+b.dataset.mvu); else { b.dataset.c = 1; b.textContent = 'Confirmer'; b.classList.remove('ghost'); } });
+    mvPreview();
+  }
+  document.querySelectorAll('[data-mvt]').forEach(b => b.onclick = () => { mvType = b.dataset.mvt; mvPreview(); });
+  ['mvS', 'mvQ', 'mvP', 'mvC'].forEach(id => $('#' + id).addEventListener('input', mvPreview));
+  $('#mvF').onsubmit = e => { e.preventDefault(); mvSave(); }; $('#mvOk').onclick = mvSave;
+
   /* ---------- branchement sur le rendu principal ---------- */
   const baseRender = render;
-  render = function () { baseRender(); if (!S.data) return; if (S.view === 'pf') pfView(); if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
+  render = function () { baseRender(); if (!S.data) return; if (S.view === 'pf') { pfView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
   nav();
 })();
