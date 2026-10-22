@@ -210,7 +210,14 @@
 
   /* ---------- Méthode : un guide par usage, choisi dans un menu ---------- */
   const HOW = {
-    crypto: { t: 'Trading crypto en journalier', tab: 'home', tabL: 'Aujourd’hui' },
+    trend: { t: 'Tendance BTC + ETH (méthode principale)', tab: 'home', tabL: 'Aujourd’hui', steps: [
+      ['Chaque lundi matin', 'Ouvre l’onglet Aujourd’hui (ou lis l’alerte Telegram) : la carte « Tendance BTC + ETH » dit quoi détenir. Le reste de la semaine, on ne touche à rien.'],
+      ['Dedans ou dehors', 'BTC et ETH sont jugés séparément. Prix au-dessus de sa moyenne des 100 derniers jours : DEDANS, on en détient. En dessous : DEHORS, on n’en détient pas.'],
+      ['Combien', 'Chaque crypto peut prendre au plus la moitié du capital tendance. Si elle est très agitée, la part baisse pour viser 40 % de volatilité par an. Le site affiche le montant exact en € et en unités.'],
+      ['Ajuster', 'Compare avec ce que tu détiens : achète ou vends la différence en spot. Le reste attend en stablecoin, sans « Earn ».'],
+      ['Tenir', 'Des baisses de 35 à 50 % peuvent arriver. La méthode limite les krachs, elle ne les supprime pas. Monte le capital par paliers.']],
+      note: 'Testée de 2018 à 2026 sur données réelles : environ +34 % par an, pire chute −40 %, contre +23 % et −81 % en gardant du BTC. Résultats passés, aucune garantie.' },
+    crypto: { t: 'Cassure altcoins (expérimental)', tab: 'home', tabL: 'Aujourd’hui' },
     ana: { t: 'Analyser un actif', tab: 'mkt', tabL: 'Analyser', steps: [
       ['Tape le symbole', 'Dans l’onglet Analyser : un symbole crypto Binance (SOL, NEAR…) ou une action suivie (NVDA, ASML…). Les suggestions s’affichent pendant la frappe.'],
       ['Lis le verdict en couleur', 'Vert : achat possible selon la méthode. Orange : pas encore, ou marché défavorable. Rouge : exclue (memecoin, prêt, dérivés) ou tendance baissière.'],
@@ -261,8 +268,8 @@
     $('#howGo').textContent = 'Ouvrir l’onglet ' + m.tabL; $('#howGo').onclick = () => go(m.tab);
   }
   $('#howSel').onchange = e => howShow(e.target.value);
-  howShow(LS.get('howSel', 'crypto'));
-  const CTX = { home: 'crypto', trades: 'crypto', mkt: 'ana', stk: 'swing', pf: 'pf' };
+  howShow(LS.get('howSel', 'trend'));
+  const CTX = { home: 'trend', trades: 'crypto', mkt: 'ana', stk: 'swing', pf: 'pf' };
   help.onclick = () => { if (CTX[S.view]) howShow(CTX[S.view]); go('how'); };
 
   /* ---------- journal des mouvements : achat, vente, dépôt, retrait, avec impact sur le stablecoin ---------- */
@@ -363,10 +370,10 @@
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" role="img" aria-label="Courbe du portefeuille témoin comparée au BTC"><line x1="0" x2="${W}" y1="${y(cv[0][1])}" y2="${y(cv[0][1])}" stroke="var(--line)" stroke-dasharray="3 4"/><path d="${path(2)}" fill="none" stroke="var(--grey)" stroke-width="2" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/><path d="${path(1)}" fill="none" stroke="var(--acc)" stroke-width="3" vector-effect="non-scaling-stroke"/></svg>`;
   }
   function twView() {
-    twLoad(); if (!TW) { twCard.innerHTML = '<div class="ctitle"><h2>Portefeuille témoin</h2></div><p class="note">Le portefeuille témoin démarre au prochain scan : la méthode y est appliquée seule, chaque nuit, avec 10 000 $ fictifs.</p>'; return; }
+    twLoad(); if (!TW) { twCard.innerHTML = '<div class="ctitle"><h2>Témoin cassure</h2><span class="sub">expérimental</span></div><p class="note">Le portefeuille témoin démarre au prochain scan : la méthode y est appliquée seule, chaque nuit, avec 10 000 $ fictifs.</p>'; return; }
     const c = TW.curve.at(-1), perf = (c[1] / TW.cap0 - 1) * 100, bp = (c[2] / TW.cap0 - 1) * 100; const C = TW.closed || []; const win = C.filter(t => t.pnl > 0).length;
     const since = new Date(TW.start).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-    twCard.innerHTML = `<div class="ctitle"><h2>Portefeuille témoin</h2><span class="sub">la méthode seule, depuis le ${since}</span></div>
+    twCard.innerHTML = `<div class="ctitle"><h2>Témoin cassure</h2><span class="sub">expérimental · depuis le ${since}</span></div>
       <div class="kpi3" style="margin-top:0;grid-template-columns:repeat(auto-fit,minmax(110px,1fr))"><div><span>Témoin</span><b class="num ${perf >= 0 ? 'up' : 'down'}">${fpc(perf)}</b><span>${fc(c[1])}</span></div><div><span>BTC conservé</span><b class="num ${bp >= 0 ? 'up' : 'down'}">${fpc(bp)}</b><span>même départ</span></div><div><span>Trades clos</span><b class="num">${C.length}</b><span>${C.length ? Math.round(win / C.length * 100) + ' % gagnants' : 'aucun encore'}</span></div></div>
       ${TW.curve.length > 1 ? `<div style="margin-top:12px">${twChart(TW.curve)}</div><div class="chips" style="font-size:12px;color:var(--ink2)"><span>━ témoin</span><span>┅ BTC</span></div>` : '<p class="note" style="margin-top:10px">La courbe se dessine nuit après nuit.</p>'}
       ${TW.pos.length ? `<div class="mute" style="font-size:12.5px;margin:12px 0 2px">En cours</div>${TW.pos.map(p => `<div class="li">${logo(p.s, 30)}<div class="mid"><b>${esc(p.s)}</b><div class="mute" style="font-size:12px">depuis le ${new Date(p.d0).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} · ${p.units.length} entrée(s) · stop ${fp(p.stop)}</div></div><div class="right"><span class="num ${(p.value || p.cost) >= p.cost ? 'up' : 'down'}">${fpc(((p.value || p.cost) / p.cost - 1) * 100)}</span></div></div>`).join('')}` : '<p class="note" style="margin-top:10px">Aucune position ouverte.</p>'}
@@ -431,8 +438,35 @@
     stCard.querySelectorAll('[data-sh]').forEach(b => b.onclick = () => { LS.set('stShock', +b.dataset.sh); stView(); });
   }
 
+  /* ---------- méthode principale : tendance BTC + ETH ---------- */
+  let TR = null, trAsked = false;
+  const trCard = document.createElement('div'); trCard.className = 'card'; trCard.id = 'trCard'; homeSec.prepend(trCard);
+  const expNote = document.createElement('div'); expNote.className = 'card'; expNote.id = 'expNote';
+  expNote.innerHTML = `<div style="display:flex;gap:10px;align-items:flex-start"><span class="badge b-warn" style="flex:none">Expérimental</span><div style="font-size:13.5px">Ci-dessous : la méthode <b>cassure altcoins</b>. Sur les tests 2018–2026 incluant les cryptos disparues, elle n’a pas d’avantage net. Elle reste visible pour la suivre <b>en papier</b> uniquement.</div></div>`;
+  trCard.after(expNote);
+  async function trLoad() { if (trAsked) return; trAsked = true; try { const r = await fetch('data/trend.json?t=' + Date.now()); if (r.ok) { TR = await r.json(); render(); } } catch (e) { } }
+  const nextMonday = () => { const d = new Date(); const k = (8 - d.getDay()) % 7 || 7; d.setDate(d.getDate() + (d.getDay() === 1 && d.getHours() < 12 ? 0 : k)); return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }); };
+  function trView() {
+    trLoad(); const T = S.data?.trend; if (!T) { trCard.innerHTML = '<div class="ctitle"><h2>Tendance BTC + ETH</h2></div><p class="note">Disponible après le prochain scan de la nuit.</p>'; return; }
+    const F = fx(); const cap = +LS.get('trCap', 1000) || 0; const A = T.assets;
+    const row = a => { const x = A[a]; const eur = cap * x.w; return `<div class="li">${logo(a, 36)}<div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>${a}</b><span class="badge ${x.in ? 'b-up' : 'b-down'}" style="padding:2px 10px;font-size:11.5px">${x.in ? 'DEDANS' : 'DEHORS'}</span></div><div class="mute" style="font-size:12px">${fpc(x.dist)} vs moyenne 100 j · agitation ${Math.round(x.vol * 100)} %/an</div></div>
+      <div class="right"><b class="num">${fe(eur)}</b><span class="mute">${x.w ? Math.round(x.w * 100) + ' % · ' + fq(eur * F / x.p) + ' ' + a : 'rien à détenir'}</span></div></div>`; };
+    const cash = cap * T.cash;
+    let tw = '';
+    if (TR && TR.curve?.length) { const c = TR.curve.at(-1); const perf = (c[1] / TR.cap0 - 1) * 100, bp = (c[2] / TR.cap0 - 1) * 100;
+      tw = `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap"><b style="font-size:14px">Témoin tendance depuis le ${new Date(TR.start).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}</b><span class="num"><b class="${perf >= 0 ? 'up' : 'down'}">${fpc(perf)}</b> <span class="mute">· BTC ${fpc(bp)}</span></span></div>
+        ${TR.curve.length > 1 ? `<div style="margin-top:8px">${twChart(TR.curve)}</div>` : '<p class="note" style="margin-top:6px">La courbe se dessine semaine après semaine (10 000 $ fictifs, mêmes règles).</p>'}</div>`; }
+    trCard.innerHTML = `<div class="ctitle"><h2>Tendance BTC + ETH</h2><span class="sub">méthode principale</span></div>
+      <div style="background:var(--surf2);border-radius:14px;padding:10px 12px;font-size:13.5px">Prochain ajustement : <b>${nextMonday()}</b>. Détiens les montants ci-dessous, le reste en stablecoin.</div>
+      <div class="list" style="margin-top:6px">${row('BTC')}${row('ETH')}
+        <div class="li"><span class="logo" style="background:#0E9F6E;width:36px;height:36px;font-size:11px">USD</span><div class="mid"><b>Stablecoin</b><div class="mute" style="font-size:12px">réserve en attendant la tendance</div></div><div class="right"><b class="num">${fe(cash)}</b><span class="mute">${Math.round(T.cash * 100)} %</span></div></div></div>
+      <div class="btns" style="margin-top:10px;align-items:flex-end"><label class="f">Capital consacré à la tendance (€)<input id="trCapI" type="number" min="0" step="100" value="${cap}"></label><button class="ghost" id="trHow">Comment ça marche ?</button></div>${tw}`;
+    $('#trCapI').onchange = e => { LS.set('trCap', Math.max(0, +e.target.value || 0)); trView(); };
+    $('#trHow').onclick = () => { howShow('trend'); go('how'); };
+  }
+
   /* ---------- branchement sur le rendu principal ---------- */
   const baseRender = render;
-  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') { instView(); twView(); } if (S.view === 'pf') { pfView(); stView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
+  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') { instView(); trView(); twView(); } if (S.view === 'pf') { pfView(); stView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
   nav();
 })();
