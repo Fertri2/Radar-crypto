@@ -3,6 +3,7 @@
 // 2) Vue d'ensemble de tout le marché Binance en USDT (≥ 0,5 M$/jour) : tendance, santé du marché, plus fortes hausses.
 // Lancé chaque nuit par GitHub Actions. Écrit site/data/signals.json. Aucune dépendance.
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
 
 const HOSTS = ['https://data-api.binance.vision', 'https://api.binance.com', 'https://api1.binance.com'];
 const CFG = { entry: 20, exit: 10, atrN: 20, atrM: 2, btcMA: 100, minVol: 5e6, minDays: 60, near: 5, keepDays: 70, mktVol: 5e5 };
@@ -180,6 +181,32 @@ async function stocks() {
   };
 }
 
+// ---------- Icônes de l'App (dessinées ici, aucune image à stocker) ----------
+function pngIcon(n) {
+  const crcT = Array.from({ length: 256 }, (_, k) => { let c = k; for (let i = 0; i < 8; i++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = b => { let c = 0xffffffff; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
+  const BG = [79, 70, 229], FG = [247, 247, 251], BL = [52, 211, 153]; const ss = 3; const raw = Buffer.alloc(n * (n * 3 + 1));
+  const inside = (x, y) => { // coordonnées normalisées -0.5..0.5
+    const r = Math.hypot(x, y), w = 0.025;
+    if (Math.hypot(x - 0.17, y + 0.05) < 0.04) return BL;
+    if (r < 0.045) return FG;
+    for (const R of [0.34, 0.24, 0.14]) if (Math.abs(r - R) < w) return FG;
+    if (x > 0 && y < 0 && r < 0.34 && Math.abs(x + y) / Math.SQRT2 < w) return FG;
+    return BG;
+  };
+  for (let py = 0; py < n; py++) {
+    raw[py * (n * 3 + 1)] = 0;
+    for (let px = 0; px < n; px++) {
+      const acc = [0, 0, 0];
+      for (let sy = 0; sy < ss; sy++) for (let sx = 0; sx < ss; sx++) { const c = inside((px + (sx + 0.5) / ss) / n - 0.5, (py + (sy + 0.5) / ss) / n - 0.5); acc[0] += c[0]; acc[1] += c[1]; acc[2] += c[2]; }
+      const o = py * (n * 3 + 1) + 1 + px * 3; for (let k = 0; k < 3; k++) raw[o + k] = Math.round(acc[k] / (ss * ss));
+    }
+  }
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(n, 0); ihdr.writeUInt32BE(n, 4); ihdr[8] = 8; ihdr[9] = 2;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
+}
+
 // ---------- Portefeuille témoin : la méthode appliquée seule, chaque nuit, depuis son lancement ----------
 // L'état est relu sur le site publié (data/track.json), mis à jour avec les nouvelles bougies, puis republié.
 const TRACK = { url: 'https://fertri2.github.io/Radar-crypto/data/track.json', cap0: 10000, risk: 0.01, unitCap: 0.10, maxPos: 3, adds: 2, step: 2, fee: 0.001, maxDays: 60 };
@@ -318,6 +345,7 @@ async function main() {
     errors: errors.slice(0, 20)
   };
   mkdirSync('site/data', { recursive: true });
+  try { writeFileSync('site/icon-192.png', pngIcon(192)); writeFileSync('site/icon-512.png', pngIcon(512)); } catch (e) { errors.push('Icônes : ' + e.message); }
   let tg = 'non envoyée';
   try {
     const { st: T, fresh } = await runTrack(out, KL);
