@@ -274,17 +274,70 @@ async function runTrack(out, KL) {
 }
 
 // ---------- Alerte Telegram du matin (secrets TG_TOKEN et TG_CHAT du dépôt) ----------
-async function telegram(out, T) {
+// ---------- Méthode principale : tendance BTC + ETH (moyenne 100 jours, volatilité visée 40 %, ajustement le lundi) ----------
+const TREND = { assets: ['BTC', 'ETH'], ma: 100, tv: 0.40, volN: 30, url: 'https://fertri2.github.io/Radar-crypto/data/trend.json', cap0: 10000, fee: 0.001, slip: 0.001, minTrade: 0.005 };
+function trendSignal(K) {
+  const out = {};
+  for (const a of TREND.assets) {
+    const k = K[a]; const c = k.map(x => +x[4]); const i = c.length - 1;
+    const ma = c.slice(-TREND.ma).reduce((s, x) => s + x, 0) / TREND.ma;
+    const r = []; for (let j = i - TREND.volN + 1; j <= i; j++) r.push(Math.log(c[j] / c[j - 1]));
+    const m = r.reduce((s, x) => s + x, 0) / r.length; const vol = Math.sqrt(r.reduce((s, x) => s + (x - m) ** 2, 0) / (r.length - 1)) * Math.sqrt(365);
+    const inn = c[i] > ma; const w = inn ? Math.min(1, TREND.tv / vol) / TREND.assets.length : 0;
+    out[a] = { p: c[i], ma, in: inn, vol, w, dist: (c[i] / ma - 1) * 100, spark: c.slice(-120).map(sig4), maSpark: c.map((_, j) => j >= TREND.ma - 1 ? c.slice(j - TREND.ma + 1, j + 1).reduce((s, x) => s + x, 0) / TREND.ma : null).slice(-120).map(v => v && sig4(v)) };
+  }
+  const wsum = TREND.assets.reduce((s, a) => s + out[a].w, 0);
+  return { assets: out, cash: 1 - wsum, rule: { ma: TREND.ma, tv: TREND.tv } };
+}
+async function loadJson(url) {
+  for (let a = 0; a < 3; a++) {
+    try { const r = await fetch(`${url}?t=${Date.now()}`, { headers: { 'cache-control': 'no-cache' } }); if (r.status === 404) return null; if (r.ok) return await r.json(); } catch (e) { /* nouvel essai */ }
+    await sleep(3000);
+  }
+  throw new Error('trend.json illisible : on ne publie pas pour ne pas effacer l’historique');
+}
+async function runTrend(out, K) {
+  const day = out.day; let st = await loadJson(TREND.url); const sig = out.trend; const px = a => sig.assets[a].p;
+  if (!st) st = { start: day, cap0: TREND.cap0, cash: TREND.cap0, q: { BTC: 0, ETH: 0 }, btc0: px('BTC'), curve: [], lastDay: null, lastRebal: null, events: [], trades: [] };
+  if (st.lastDay && st.lastDay >= day) return { st, fresh: false };
+  const eqv = () => st.cash + TREND.assets.reduce((s, a) => s + st.q[a] * px(a), 0);
+  const ev = []; const sunday = new Date(day + 'T00:00:00Z').getUTCDay() === 0;
+  if (sunday || !st.lastRebal) {
+    const E = eqv();
+    const plan = TREND.assets.map(a => [a, E * sig.assets[a].w - st.q[a] * px(a)]).sort((x, y) => x[1] - y[1]); // ventes d'abord
+    for (const [a, d0] of plan) {
+      const target = E * sig.assets[a].w; const cur = st.q[a] * px(a); const diff = d0 > 0 ? Math.min(d0, st.cash / (1 + TREND.fee)) : d0;
+      if (Math.abs(diff) < E * TREND.minTrade && !(target === 0 && cur > 0)) continue;
+      if (diff > 0) { const e = px(a) * (1 + TREND.slip); const q = diff / e; st.q[a] += q; st.cash -= diff * (1 + TREND.fee); ev.push(`Achat ${a} : ${Math.round(diff).toLocaleString('fr-FR')} $`); }
+      else { const x = px(a) * (1 - TREND.slip); const q = Math.min(st.q[a], -diff / px(a)); st.q[a] -= q; st.cash += q * x * (1 - TREND.fee); ev.push(`Vente ${a} : ${Math.round(q * x).toLocaleString('fr-FR')} $`); }
+      st.trades.unshift({ d: day, a, side: diff > 0 ? 'achat' : 'vente', usd: Math.round(Math.abs(diff)) });
+    }
+    st.lastRebal = day;
+  }
+  const E = eqv(); st.curve.push([day, +E.toFixed(2), +(st.cap0 * px('BTC') / st.btc0).toFixed(2)]);
+  st.alloc = Object.fromEntries(TREND.assets.map(a => [a, +(st.q[a] * px(a) / E).toFixed(4)])); st.alloc.cash = +(st.cash / E).toFixed(4);
+  st.trades = st.trades.slice(0, 100); st.lastDay = day; st.events = ev; st.rebal = sunday; st.updated = new Date().toISOString();
+  return { st, fresh: true };
+}
+
+async function telegram(out, T, TR) {
   const tok = process.env.TG_TOKEN, chat = process.env.TG_CHAT; if (!tok || !chat) return 'non configurée';
   const f = v => (+v).toLocaleString('fr-FR', { maximumSignificantDigits: 5 }); const pc = v => (v >= 0 ? '+' : '−') + Math.abs(v).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
   const L = [`<b>Radar · ${new Date(out.day).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</b>`];
-  L.push(out.tradeable ? 'Marché crypto : ouvert (BTC au-dessus de sa moyenne 100 jours)' : `Marché crypto : fermé (BTC à ${pc(out.btc.dist)} de sa moyenne 100 jours), aucun achat`);
-  if (out.tradeable && out.signals.length) { L.push('', '<b>Cassures à acheter ce matin</b>'); out.signals.slice(0, 5).forEach(s => L.push(`• ${s.s} : entrée ${f(s.p)} $ (jusqu’à +3 %), SL ${f(s.stop)} $`)); }
+  const tg = out.trend; if (tg) {
+    const monday = TR?.rebal; L.push('', monday ? '<b>Tendance BTC + ETH · ajustement du lundi</b>' : '<b>Tendance BTC + ETH</b> (ajustement lundi)');
+    for (const a of ['BTC', 'ETH']) { const x = tg.assets[a]; L.push(`• ${a} : ${x.in ? 'DEDANS' : 'DEHORS'} (${pc(x.dist)} vs moyenne 100 j) · cible ${Math.round(x.w * 100)} % du capital tendance`); }
+    L.push(`• Stablecoin : ${Math.round(tg.cash * 100)} %`);
+    if (TR) { const c = TR.curve.at(-1); L.push(`Témoin tendance depuis le ${new Date(TR.start).toLocaleDateString('fr-FR')} : ${pc((c[1] / TR.cap0 - 1) * 100)} (BTC ${pc((c[2] / TR.cap0 - 1) * 100)})`); TR.events.forEach(e => L.push('• ' + e)); }
+  }
+  L.push('', '<b>Cassure altcoins (expérimental, en papier)</b>');
+  L.push(out.tradeable ? 'Marché ouvert (BTC au-dessus de sa moyenne 100 jours)' : `Marché fermé (BTC à ${pc(out.btc.dist)} de sa moyenne 100 jours), aucun achat`);
+  if (out.tradeable && out.signals.length) { L.push('Cassures de la nuit :'); out.signals.slice(0, 5).forEach(s => L.push(`• ${s.s} : entrée ${f(s.p)} $ (jusqu’à +3 %), SL ${f(s.stop)} $`)); }
   else if (out.tradeable) L.push('Aucune cassure cette nuit.');
-  if (out.near.length) L.push('', '<b>Proches du déclenchement</b>', out.near.slice(0, 4).map(n => `${n.s} à ${pc(n.dist)}`).join(' · '));
+  if (out.near.length) L.push('Proches : ' + out.near.slice(0, 4).map(n => `${n.s} à ${pc(n.dist)}`).join(' · '));
   const sw = out.stocks?.swing; if (sw?.sig?.length) L.push('', '<b>Swing actions</b>', sw.sig.slice(0, 4).map(x => `${x.s} (${x.set === 'bo' ? 'cassure' : 'repli + rebond'})`).join(' · '));
   if (T) { const c = T.curve.at(-1); const perf = (c[1] / T.cap0 - 1) * 100, bp = (c[2] / T.cap0 - 1) * 100;
-    L.push('', `<b>Portefeuille témoin</b> depuis le ${new Date(T.start).toLocaleDateString('fr-FR')} : ${pc(perf)} (BTC ${pc(bp)})`);
+    L.push(`Témoin cassure depuis le ${new Date(T.start).toLocaleDateString('fr-FR')} : ${pc(perf)} (BTC ${pc(bp)})`);
     T.events.forEach(e => L.push('• ' + e)); }
   L.push('', 'Tes propres positions : vérifie l’onglet Trades.', 'https://fertri2.github.io/Radar-crypto/', '<i>Outil d’aide à la décision, pas un conseil en investissement.</i>');
   const r = await fetch(`https://api.telegram.org/bot${tok}/sendMessage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text: L.join('\n'), parse_mode: 'HTML', disable_web_page_preview: true }) });
@@ -346,11 +399,20 @@ async function main() {
   };
   mkdirSync('site/data', { recursive: true });
   try { writeFileSync('site/icon-192.png', pngIcon(192)); writeFileSync('site/icon-512.png', pngIcon(512)); } catch (e) { errors.push('Icônes : ' + e.message); }
-  let tg = 'non envoyée';
+  let tg = 'non envoyée', TR = null, trFresh = false;
+  try {
+    const ethK = (await get(`/api/v3/klines?symbol=ETHUSDT&interval=1d&limit=${CFG.btcMA + 40}`)).filter(x => +x[6] < Date.now());
+    out.trend = trendSignal({ BTC: bk, ETH: ethK });
+    const r = await runTrend(out); TR = r.st; trFresh = r.fresh;
+    writeFileSync('site/data/trend.json', JSON.stringify(TR));
+  } catch (e) {
+    if (/illisible/.test(e.message)) { console.error(e.message); process.exit(1); }
+    errors.push('Tendance : ' + e.message); out.errors = errors.slice(0, 20);
+  }
   try {
     const { st: T, fresh } = await runTrack(out, KL);
     writeFileSync('site/data/track.json', JSON.stringify(T));
-    if (fresh || process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') { try { tg = await telegram(out, T); } catch (e) { tg = 'erreur : ' + e.message; } }
+    if (fresh || trFresh || process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') { try { tg = await telegram(out, T, TR); } catch (e) { tg = 'erreur : ' + e.message; } }
   } catch (e) {
     if (/illisible/.test(e.message)) { console.error(e.message); process.exit(1); }
     errors.push('Portefeuille témoin : ' + e.message); out.errors = errors.slice(0, 20);
