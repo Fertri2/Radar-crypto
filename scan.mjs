@@ -180,6 +180,90 @@ async function stocks() {
   };
 }
 
+// ---------- Portefeuille témoin : la méthode appliquée seule, chaque nuit, depuis son lancement ----------
+// L'état est relu sur le site publié (data/track.json), mis à jour avec les nouvelles bougies, puis republié.
+const TRACK = { url: 'https://fertri2.github.io/Radar-crypto/data/track.json', cap0: 10000, risk: 0.01, unitCap: 0.10, maxPos: 3, adds: 2, step: 2, fee: 0.001, maxDays: 60 };
+async function loadTrack() {
+  for (let a = 0; a < 3; a++) {
+    try {
+      const r = await fetch(`${TRACK.url}?t=${Date.now()}`, { headers: { 'cache-control': 'no-cache' } });
+      if (r.status === 404) return null;
+      if (r.ok) return await r.json();
+    } catch (e) { /* nouvel essai */ }
+    await sleep(3000);
+  }
+  throw new Error('track.json illisible : on ne publie pas pour ne pas effacer l’historique');
+}
+async function runTrack(out, KL) {
+  const day = out.day; let st = await loadTrack();
+  if (!st) st = { start: day, cap0: TRACK.cap0, cash: TRACK.cap0, btc0: out.btc.p, pos: [], closed: [], curve: [], lastDay: null, events: [] };
+  if (st.lastDay && st.lastDay >= day) return { st, fresh: false };
+  const ev = []; const candles = {};
+  for (const p of st.pos) {
+    let k = KL.get(p.s);
+    if (!k) { try { k = (await get(`/api/v3/klines?symbol=${p.s}USDT&interval=1d&limit=120`)).filter(x => +x[6] < Date.now()); } catch (e) { k = null; } }
+    candles[p.s] = k ? k.map(x => ({ d: new Date(+x[0]).toISOString().slice(0, 10), o: +x[1], h: +x[2], l: +x[3], c: +x[4] })) : [];
+  }
+  const lastClose = s => { const c = candles[s]; return c && c.length ? c.at(-1).c : null; };
+  const equity = () => st.cash + st.pos.reduce((t, p) => t + p.q * (lastClose(p.s) ?? p.last), 0);
+  const sell = (p, px, d, why) => {
+    const gross = p.q * px; st.cash += gross - gross * TRACK.fee;
+    const pnl = gross - gross * TRACK.fee - p.cost; const pct = pnl / p.cost * 100;
+    st.closed.unshift({ s: p.s, d0: p.d0, d1: d, e: p.e, x: px, units: p.units.length, pnl: +pnl.toFixed(2), pct: +pct.toFixed(2), why });
+    ev.push(`Vente ${p.s} à ${String(sig4(px)).replace('.', ',')} $ (${pct >= 0 ? '+' : '−'}${Math.abs(pct).toFixed(1).replace('.', ',')} %) : ${why}`);
+  };
+  const buy = (s, px, stop, atr, d, eq) => {
+    let q = (eq * TRACK.risk) / (TRACK.step * atr); q = Math.min(q, eq * TRACK.unitCap / px); const cost = q * px * (1 + TRACK.fee);
+    if (!(q > 0) || cost > st.cash) return null; st.cash -= cost; return { q, cost };
+  };
+  // 1. positions ouvertes : stop, TP suiveur, durée, renforts, bougie par bougie
+  for (const p of [...st.pos]) {
+    const C = candles[p.s]; if (!C.length) continue;
+    for (let j = 0; j < C.length; j++) {
+      const k = C[j]; if (k.d <= p.seen || k.d > day) continue; p.seen = k.d;
+      const lo10 = Math.min(...C.slice(Math.max(0, j - 10), j).map(x => x.l)); p.held++;
+      if (k.l <= p.stop) { sell(p, Math.min(k.o, p.stop), k.d, p.units.length > 1 ? 'stop remonté touché' : 'stop de sécurité touché'); st.pos = st.pos.filter(x => x !== p); break; }
+      if (k.c < lo10) { sell(p, k.c, k.d, 'TP suiveur (clôture sous le plus bas 10 jours)'); st.pos = st.pos.filter(x => x !== p); break; }
+      if (p.held >= TRACK.maxDays) { sell(p, k.c, k.d, '60 jours écoulés'); st.pos = st.pos.filter(x => x !== p); break; }
+      p.last = k.c;
+      if (p.units.length < 1 + TRACK.adds && k.c >= p.lastE + TRACK.step * p.atr0) {
+        const nst = Math.max(p.stop, k.c - TRACK.step * p.atr0); const b = buy(p.s, k.c, nst, p.atr0, k.d, equity());
+        if (b) { p.q += b.q; p.cost += b.cost; p.units.push({ d: k.d, px: k.c }); p.lastE = k.c; p.stop = nst; ev.push(`Renfort ${p.s} à ${String(sig4(k.c)).replace('.', ',')} $, stop remonté à ${String(sig4(nst)).replace('.', ',')} $`); }
+      }
+    }
+  }
+  // 2. nouvelles entrées du jour
+  if (out.tradeable) for (const s of out.signals) {
+    if (st.pos.length >= TRACK.maxPos) break; if (st.pos.some(p => p.s === s.s)) continue;
+    const b = buy(s.s, s.p, s.stop, s.atr, day, equity()); if (!b) continue;
+    st.pos.push({ s: s.s, d0: day, e: s.p, q: b.q, cost: b.cost, stop: s.stop, atr0: s.atr, lastE: s.p, last: s.p, units: [{ d: day, px: s.p }], seen: day, held: 0 });
+    candles[s.s] = candles[s.s] || []; ev.push(`Achat ${s.s} à ${String(sig4(s.p)).replace('.', ',')} $, stop ${String(sig4(s.stop)).replace('.', ',')} $`);
+  }
+  const eq = equity();
+  st.curve.push([day, +eq.toFixed(2), +(st.cap0 * out.btc.p / st.btc0).toFixed(2)]);
+  st.closed = st.closed.slice(0, 200); st.lastDay = day; st.events = ev; st.updated = new Date().toISOString();
+  st.pos.forEach(p => { p.value = +(p.q * (lastClose(p.s) ?? p.last)).toFixed(2); });
+  return { st, fresh: true };
+}
+
+// ---------- Alerte Telegram du matin (secrets TG_TOKEN et TG_CHAT du dépôt) ----------
+async function telegram(out, T) {
+  const tok = process.env.TG_TOKEN, chat = process.env.TG_CHAT; if (!tok || !chat) return 'non configurée';
+  const f = v => (+v).toLocaleString('fr-FR', { maximumSignificantDigits: 5 }); const pc = v => (v >= 0 ? '+' : '−') + Math.abs(v).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
+  const L = [`<b>Radar · ${new Date(out.day).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</b>`];
+  L.push(out.tradeable ? 'Marché crypto : ouvert (BTC au-dessus de sa moyenne 100 jours)' : `Marché crypto : fermé (BTC à ${pc(out.btc.dist)} de sa moyenne 100 jours), aucun achat`);
+  if (out.tradeable && out.signals.length) { L.push('', '<b>Cassures à acheter ce matin</b>'); out.signals.slice(0, 5).forEach(s => L.push(`• ${s.s} : entrée ${f(s.p)} $ (jusqu’à +3 %), SL ${f(s.stop)} $`)); }
+  else if (out.tradeable) L.push('Aucune cassure cette nuit.');
+  if (out.near.length) L.push('', '<b>Proches du déclenchement</b>', out.near.slice(0, 4).map(n => `${n.s} à ${pc(n.dist)}`).join(' · '));
+  const sw = out.stocks?.swing; if (sw?.sig?.length) L.push('', '<b>Swing actions</b>', sw.sig.slice(0, 4).map(x => `${x.s} (${x.set === 'bo' ? 'cassure' : 'repli + rebond'})`).join(' · '));
+  if (T) { const c = T.curve.at(-1); const perf = (c[1] / T.cap0 - 1) * 100, bp = (c[2] / T.cap0 - 1) * 100;
+    L.push('', `<b>Portefeuille témoin</b> depuis le ${new Date(T.start).toLocaleDateString('fr-FR')} : ${pc(perf)} (BTC ${pc(bp)})`);
+    T.events.forEach(e => L.push('• ' + e)); }
+  L.push('', 'Tes propres positions : vérifie l’onglet Trades.', 'https://fertri2.github.io/Radar-crypto/', '<i>Outil d’aide à la décision, pas un conseil en investissement.</i>');
+  const r = await fetch(`https://api.telegram.org/bot${tok}/sendMessage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text: L.join('\n'), parse_mode: 'HTML', disable_web_page_preview: true }) });
+  return r.ok ? 'envoyée' : 'échec HTTP ' + r.status;
+}
+
 async function main() {
   const errors = [];
   const tick = await get('/api/v3/ticker/24hr');
@@ -190,11 +274,12 @@ async function main() {
     .sort((a, b) => b.vol - a.vol);
   const okx = await okxList();
 
-  const coins = [];
+  const coins = []; const KL = new Map();
   for (const u of all) {
     try {
       const k = await get(`/api/v3/klines?symbol=${u.s}USDT&interval=1d&limit=120`);
       if (!Array.isArray(k) || k.length < 25) continue;
+      KL.set(u.s, k.filter(x => +x[6] < Date.now()));
       const a = analyse(k);
       const tag = MEME.has(u.s) ? 'meme' : ETHIC.has(u.s) ? 'ethique' : null;
       const elig = !tag && u.vol >= CFG.minVol && a.days >= CFG.minDays;
@@ -233,7 +318,17 @@ async function main() {
     errors: errors.slice(0, 20)
   };
   mkdirSync('site/data', { recursive: true });
+  let tg = 'non envoyée';
+  try {
+    const { st: T, fresh } = await runTrack(out, KL);
+    writeFileSync('site/data/track.json', JSON.stringify(T));
+    if (fresh) { try { tg = await telegram(out, T); } catch (e) { tg = 'erreur : ' + e.message; } }
+  } catch (e) {
+    if (/illisible/.test(e.message)) { console.error(e.message); process.exit(1); }
+    errors.push('Portefeuille témoin : ' + e.message); out.errors = errors.slice(0, 20);
+  }
   writeFileSync('site/data/signals.json', JSON.stringify(out));
+  console.log('Alerte Telegram : ' + tg);
   console.log(`OK · marché ${coins.length} · éligibles ${tradable.length} · BTC ${btc.on ? 'au-dessus' : 'sous'} MM100 · ${sig.length} signal(s) · ${near.length} proche(s) · OKX ${okx ? 'vérifié' : 'non vérifié'} · actions ${stk ? stk.count + ' lues, ' + stk.list.length + ' retenues' : 'indisponibles'} · ${errors.length} erreur(s)`);
   if (tradable.length < 10) { console.error('Trop peu de cryptos lues : source de données indisponible ?'); process.exit(1); }
 }
