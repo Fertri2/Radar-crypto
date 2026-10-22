@@ -465,8 +465,37 @@
     $('#trHow').onclick = () => { howShow('trend'); go('how'); };
   }
 
+  /* ---------- simulateur d'objectif (apport mensuel nécessaire, 3 scénarios) ---------- */
+  const simCard = document.createElement('div'); simCard.className = 'card'; simCard.id = 'simCard'; stCard.after(simCard);
+  const SIMSC = [['Prudent', .10, 'var(--down)'], ['Central', .20, 'var(--acc)'], ['Historique', .34, 'var(--up)']];
+  const simGet = () => Object.assign({ mode: 'rente', rente: 2500, cap: 300000, ans: 10, c0: 10000, pm: 1000 }, LS.get('sim', {}));
+  function simView() {
+    const o = simGet(); const T = o.mode === 'rente' ? o.rente * 12 / 0.04 : o.cap; const n = o.ans * 12;
+    const need = r => { const rm = Math.pow(1 + r, 1 / 12) - 1, G = Math.pow(1 + rm, n); return Math.max(0, (T - o.c0 * G) / ((G - 1) / rm)); };
+    const path = (r, H) => { const rm = Math.pow(1 + r, 1 / 12) - 1; let v = o.c0; const a = [v]; for (let m = 1; m <= H; m++) { v = v * (1 + rm) + o.pm; a.push(v); } return a; };
+    const k = v => v >= 1e6 ? (v / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' M€' : Math.round(v / 1000).toLocaleString('fr-FR') + ' k€';
+    const H = Math.max(o.ans + 5, 15) * 12; const P = SIMSC.map(([, r]) => path(r, H));
+    const W = 640, Ht = 220, L = 52, R = 10, Tp = 10, B = 24; const hi = T * 1.6;
+    const x = m => L + m * (W - L - R) / H, y = v => Tp + (1 - v / hi) * (Ht - Tp - B);
+    let g = `<defs><clipPath id="simclp"><rect x="${L}" y="${Tp}" width="${W - L - R}" height="${Ht - Tp - B}"/></clipPath></defs>`;
+    for (let i = 0; i <= 4; i++) { const v = hi * i / 4; g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="currentColor" opacity=".6">${k(v)}</text>`; }
+    g += `<line x1="${x(n)}" x2="${x(n)}" y1="${Tp}" y2="${Ht - B}" stroke="currentColor" opacity=".35" stroke-dasharray="4 5"/><line x1="${L}" x2="${W - R}" y1="${y(T)}" y2="${y(T)}" stroke="currentColor" stroke-width="2" stroke-dasharray="7 5"/>`;
+    P.forEach((p, i) => { g += `<path clip-path="url(#simclp)" d="${p.map((v, m) => (m ? 'L' : 'M') + x(m).toFixed(1) + ',' + y(v).toFixed(1)).join('')}" fill="none" stroke="${SIMSC[i][2]}" stroke-width="3"/>`; });
+    const sl = (id, lab, min, max, step, val, fmt) => `<label class="f" style="flex:1 1 200px">${lab} <b class="num" style="color:var(--acc)">${fmt(val)}</b><input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${val}" style="width:100%;accent-color:var(--acc);padding:0;border:0;background:none"></label>`;
+    simCard.innerHTML = `<div class="ctitle"><h2>Simulateur d’objectif</h2><span class="sub">apport mensuel nécessaire</span></div>
+      <div class="seg" role="group" aria-label="Type d’objectif" style="display:flex;width:100%"><button data-simm="rente" aria-pressed="${o.mode === 'rente'}" style="flex:1">Une rente</button><button data-simm="cap" aria-pressed="${o.mode === 'cap'}" style="flex:1">Un capital</button></div>
+      <div class="btns" style="margin-top:10px;gap:12px">${o.mode === 'rente' ? sl('simRente', 'Rente par mois', 500, 6000, 100, o.rente, fe) : sl('simCap', 'Capital visé', 50000, 2000000, 10000, o.cap, k)}${sl('simAns', 'Délai', 3, 25, 1, o.ans, v => v + ' ans')}${sl('simC0', 'Départ', 0, 200000, 1000, o.c0, fe)}${sl('simPm', 'Apport mensuel', 0, 6000, 50, o.pm, fe)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:10px"><span class="mute" style="font-size:13px">Capital nécessaire${o.mode === 'rente' ? ' (25 fois la rente annuelle, retrait de 4 % par an)' : ''}</span><b class="num" style="font-size:22px;white-space:nowrap">${k(T)}</b></div>
+      <div class="kpi3" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">${SIMSC.map(([l, r, c], i) => { const m = P[i].findIndex(v => v >= T); return `<div><span>${l} · ${Math.round(r * 100)} %/an</span><b class="num" style="color:${c}">${fe(need(r))}</b><span>par mois · avec ${fe(o.pm)} : ${m < 0 ? '> ' + H / 12 + ' ans' : (m / 12).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' ans'}</span></div>`; }).join('')}</div>
+      <div style="margin-top:10px;overflow-x:auto"><svg viewBox="0 0 ${W} ${Ht}" width="100%" role="img" aria-label="Trajectoire du capital selon trois scénarios">${g}</svg></div>
+      <p class="note" style="margin-top:6px">Hypothèses de rendement de la méthode tendance : 34 %/an = test 2018–2026, peu probable à l’avenir ; on planifie sur le central ou le prudent. Des chutes de 35 à 50 % arriveront en route. Sans inflation ni impôts. Pas un conseil en investissement.</p>`;
+    const set = (key, val) => { const s = simGet(); s[key] = val; LS.set('sim', s); simView(); };
+    simCard.querySelectorAll('[data-simm]').forEach(b => b.onclick = () => set('mode', b.dataset.simm));
+    [['simRente', 'rente'], ['simCap', 'cap'], ['simAns', 'ans'], ['simC0', 'c0'], ['simPm', 'pm']].forEach(([id, key]) => { const e = document.getElementById(id); if (e) e.onchange = () => set(key, +e.value); });
+  }
+
   /* ---------- branchement sur le rendu principal ---------- */
   const baseRender = render;
-  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') { instView(); trView(); twView(); } if (S.view === 'pf') { pfView(); stView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
+  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') { instView(); trView(); twView(); } if (S.view === 'pf') { pfView(); stView(); simView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
   nav();
 })();
