@@ -374,8 +374,63 @@
       <p class="note" style="margin-top:10px">10 000 $ fictifs, 1 % de risque par entrée, 3 positions au plus, frais 0,1 %. Calculé chaque nuit par le serveur, impossible à retoucher : c’est la preuve en réel de la méthode, au fil de l’eau.</p>`;
   }
 
+  /* ---------- App installable (PWA) ---------- */
+  (() => {
+    const add = (t, a) => { const e = document.createElement(t); Object.entries(a).forEach(([k, v]) => e.setAttribute(k, v)); document.head.appendChild(e); };
+    if (!document.querySelector('link[rel=manifest]')) add('link', { rel: 'manifest', href: 'manifest.webmanifest' });
+    add('meta', { name: 'theme-color', content: '#4F46E5' }); add('link', { rel: 'apple-touch-icon', href: 'icon-192.png' });
+    add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' }); add('meta', { name: 'mobile-web-app-capable', content: 'yes' }); add('meta', { name: 'apple-mobile-web-app-title', content: 'Radar' });
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
+  })();
+  let instEvt = null; window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instEvt = e; render(); });
+  window.addEventListener('appinstalled', () => { LS.set('instHide', true); render(); });
+  const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const instCard = document.createElement('div'); instCard.className = 'card'; instCard.id = 'instCard'; homeSec.insertBefore(instCard, twCard);
+  function instView() {
+    if (standalone() || LS.get('instHide', false)) { instCard.hidden = true; return; } instCard.hidden = false;
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const how = instEvt ? 'Une vraie app sur ton écran d’accueil, en plein écran, qui s’ouvre même sans réseau.' : ios ? 'Dans Safari : bouton Partager (carré avec une flèche), puis « Sur l’écran d’accueil ».' : 'Dans Chrome : menu ⋮ en haut à droite, puis « Installer l’application » ou « Ajouter à l’écran d’accueil ».';
+    instCard.innerHTML = `<div style="display:flex;gap:12px;align-items:center"><img src="icon-192.png" width="48" height="48" style="border-radius:14px;flex:none" alt=""><div style="flex:1;min-width:0"><b>Installe Radar sur ton téléphone</b><div class="mute" style="font-size:13px;margin-top:2px">${how}</div></div></div>
+      <div class="btns" style="margin-top:10px">${instEvt ? '<button class="pri" id="instGo">Installer</button>' : ''}<button class="ghost" id="instNo">Plus tard</button></div>`;
+    $('#instNo').onclick = () => { LS.set('instHide', true); instView(); };
+    if (instEvt) $('#instGo').onclick = async () => { instEvt.prompt(); try { await instEvt.userChoice; } catch (e) { } instEvt = null; instView(); };
+  }
+
+  /* ---------- stress test du portefeuille ---------- */
+  const stCard = document.createElement('div'); stCard.className = 'card'; stCard.id = 'stCard'; document.getElementById('pfHead').after(stCard);
+  function betaOf(a) {
+    if (a.src === 'stable') return [0, 'stable']; if (a.sym === 'BTC') return [1, 'ok'];
+    const q = price(a), b = S.data?.btc?.spark; if (!q?.spark || !b) return [1.3, 'estimé'];
+    const n = Math.min(q.spark.length, b.length) - 1; if (n < 30) return [1.3, 'estimé'];
+    const A = q.spark.slice(-n - 1), B = b.slice(-n - 1); const ra = [], rb = [];
+    for (let i = 1; i <= n; i++) { ra.push(A[i] / A[i - 1] - 1); rb.push(B[i] / B[i - 1] - 1); }
+    const ma = ra.reduce((s, x) => s + x, 0) / n, mb = rb.reduce((s, x) => s + x, 0) / n; let cv = 0, vb = 0;
+    for (let i = 0; i < n; i++) { cv += (ra[i] - ma) * (rb[i] - mb); vb += (rb[i] - mb) ** 2; }
+    return [Math.max(0.3, Math.min(3, vb ? cv / vb : 1.3)), 'ok'];
+  }
+  function stView() {
+    const A = PF.get().assets.filter(a => !a.watch && a.qty > 0); if (!A.length) { stCard.hidden = true; return; } stCard.hidden = false;
+    const sh = LS.get('stShock', 30) / 100; let tot = 0, loss = 0, stab = 0;
+    const rows = A.map(a => { const q = price(a); const v = q ? q.p * a.qty : 0; const [b, how] = betaOf(a); const l = v * Math.min(0.95, b * sh); tot += v; loss += l; if (a.src === 'stable') stab += v; return { s: a.sym, v, b, how, l }; }).filter(r => r.v > 0);
+    const risky = tot - stab; const top = rows.filter(r => r.l > 0).sort((x, y) => y.l - x.l).slice(0, 5); const maxL = top[0]?.l || 1;
+    const byV = rows.filter(r => r.b > 0).sort((x, y) => y.v - x.v); const big = byV[0]; const t3 = byV.slice(0, 3).reduce((s, r) => s + r.v, 0);
+    const warn = [];
+    if (big && risky && big.v / risky > 0.25) warn.push(`<b>${esc(big.s)}</b> pèse ${Math.round(big.v / risky * 100)} % de tes cryptos : une seule ligne peut faire très mal.`);
+    if (risky && t3 / risky > 0.6) warn.push(`Tes 3 plus grosses lignes font ${Math.round(t3 / risky * 100)} % du risque.`);
+    warn.push(`Réserve en stablecoins : ${Math.round(tot ? stab / tot * 100 : 0)} % (${fc(stab)}), prête à racheter après une baisse.`);
+    const btcP = S.data?.btc?.p;
+    stCard.innerHTML = `<div class="ctitle"><h2>Et si le marché chute ?</h2><span class="sub">stress test</span></div>
+      <div class="mute" style="font-size:13px;margin-bottom:6px">Si le BTC baisse de…</div><div class="seg" role="group" aria-label="Baisse du BTC" style="display:flex;width:100%">${[10, 20, 30, 50].map(k => `<button data-sh="${k}" aria-pressed="${Math.round(sh * 100) === k}" style="flex:1;white-space:nowrap">−${k} %</button>`).join('')}</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:14px;flex-wrap:wrap"><div><div class="mute" style="font-size:13px">Perte estimée</div><div class="num down" style="font-size:30px;font-weight:800">−${fc(loss).replace('−', '')}</div><div class="mute" style="font-size:13px">${fpc(tot ? -loss / tot * 100 : 0)} de ton portefeuille</div></div>
+      ${btcP ? `<div style="text-align:right"><div class="mute" style="font-size:13px">BTC passerait à</div><b class="num">${fp(btcP * (1 - sh))}</b></div>` : ''}</div>
+      <div style="margin-top:14px">${top.map(r => `<div style="display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;padding:4px 0"><b style="font-size:13.5px">${esc(r.s)}</b><div class="bar" style="height:10px"><span style="width:${(r.l / maxL * 100).toFixed(1)}%;background:var(--down)"></span></div><span class="num" style="font-size:13px">−${fc(r.l).replace('−', '')}${r.how === 'estimé' ? '*' : ''}</span></div>`).join('')}</div>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px">${warn.map(w => `<div style="background:var(--surf2);border-radius:12px;padding:8px 12px;font-size:13.5px">${w}</div>`).join('')}</div>
+      <p class="note" style="margin-top:10px">Chaque crypto est sensible au BTC selon son comportement des 90 derniers jours (une crypto à ×1,5 perd 45 % quand le BTC perd 30 %). Lors d’un vrai krach, les altcoins chutent souvent plus que prévu. * sensibilité estimée faute d’historique.</p>`;
+    stCard.querySelectorAll('[data-sh]').forEach(b => b.onclick = () => { LS.set('stShock', +b.dataset.sh); stView(); });
+  }
+
   /* ---------- branchement sur le rendu principal ---------- */
   const baseRender = render;
-  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') twView(); if (S.view === 'pf') { pfView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
+  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') { instView(); twView(); } if (S.view === 'pf') { pfView(); stView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
   nav();
 })();
