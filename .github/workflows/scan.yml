@@ -29,6 +29,9 @@ jobs:
           node-version: 20
       - name: Scanner le marché
         run: node scan.mjs
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
