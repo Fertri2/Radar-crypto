@@ -301,17 +301,19 @@
     $('#mvPrev').innerHTML = `<div style="background:var(--surf2);border-radius:14px;padding:10px 12px">${rows.map(r => `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0"><b>${esc(r[0])}</b><span class="num">${fq(Math.max(r[1], 0))} → <b class="${r[2] >= r[1] ? 'up' : 'down'}">${r[2] < 0 ? '−' + fq(-r[2]) : fq(r[2])}</b></span></div>`).join('')}
       ${c.p ? `<div class="mute" style="font-size:12.5px;margin-top:4px">Valeur du mouvement : ${fc(c.val)} (${fp(c.p)} l’unité)</div>` : '<div class="mute" style="font-size:12.5px;margin-top:4px">Prix inconnu : indique-le pour suivre le montant investi.</div>'}</div>${warn}`;
   }
+  function applyMove(st, type, s, q, p, cur, auto) {
+    let a = st.assets.find(x => x.sym === s); if (!a) { a = { sym: s, name: s, qty: 0, invested: 0, src: STABLES.includes(s) ? 'stable' : 'bn', watch: false }; st.assets.push(a); }
+    const val = q * (p || 0); const q0 = a.qty || 0, inv0 = a.invested || 0; let dInv = 0, pnl = null;
+    if (type === 'buy' || type === 'in') dInv = val;
+    else { const part = q0 > 0 ? Math.min(1, q / q0) : 0; dInv = -inv0 * part; if (type === 'sell' && p) pnl = val + dInv; }
+    a.qty = Math.max(0, q0 + (type === 'buy' || type === 'in' ? q : -q)); a.invested = Math.max(0, inv0 + dInv); a.watch = false;
+    let dS = 0; if (cur && (type === 'buy' || type === 'sell')) { let sa = st.assets.find(x => x.sym === cur); if (!sa) { sa = { sym: cur, name: cur, qty: 0, invested: 0, src: 'stable', watch: false }; st.assets.push(sa); }
+      dS = (type === 'buy' ? -1 : 1) * val; sa.qty = +(sa.qty + dS).toFixed(6); sa.invested = Math.max(0, (sa.invested || 0) + dS); }
+    st.moves = st.moves || []; st.moves.unshift({ id: Date.now() + Math.random(), d: new Date().toISOString(), t: type, s, q, p: p || null, cur: cur || null, dq: a.qty - q0, dInv: a.invested - inv0, dS, pnl, auto: !!auto });
+  }
   function mvSave() {
     const c = mvCalc(); if (!c.s || !(c.q > 0)) { mvPreview(); $('#mvS').focus(); return; }
-    const st = c.st; let a = c.a; if (!a) { a = { sym: c.s, name: c.s, qty: 0, invested: 0, src: STABLES.includes(c.s) ? 'stable' : 'bn', watch: false }; st.assets.push(a); }
-    const q0 = a.qty || 0, inv0 = a.invested || 0; let dInv = 0, pnl = null;
-    if (mvType === 'buy' || mvType === 'in') dInv = c.val;
-    else { const part = q0 > 0 ? Math.min(1, c.q / q0) : 0; dInv = -inv0 * part; if (mvType === 'sell' && c.p) pnl = c.val + dInv; }
-    a.qty = Math.max(0, q0 + (mvType === 'buy' || mvType === 'in' ? c.q : -c.q)); a.invested = Math.max(0, inv0 + dInv); a.watch = false;
-    let dS = 0; if (c.cur) { let sa = c.sa; if (!sa) { sa = { sym: c.cur, name: c.cur, qty: 0, invested: 0, src: 'stable', watch: false }; st.assets.push(sa); }
-      dS = (mvType === 'buy' ? -1 : 1) * c.val; sa.qty = +(sa.qty + dS).toFixed(6); sa.invested = Math.max(0, (sa.invested || 0) + dS); }
-    st.moves = st.moves || []; st.moves.unshift({ id: Date.now(), d: new Date().toISOString(), t: mvType, s: c.s, q: c.q, p: c.p || null, cur: c.cur || null, dq: a.qty - q0, dInv: a.invested - inv0, dS, pnl });
-    PF.set(st); $('#mvQ').value = ''; $('#mvP').value = ''; mvPreview(); render();
+    applyMove(c.st, mvType, c.s, c.q, c.p, c.cur); PF.set(c.st); $('#mvQ').value = ''; $('#mvP').value = ''; mvPreview(); render();
   }
   function mvUndo(id) {
     const st = PF.get(); const m = (st.moves || []).find(x => x.id === id); if (!m) return;
@@ -323,7 +325,7 @@
     const L = $('#mvL'); const st = PF.get(); L.innerHTML = [...new Set([...st.assets.map(a => a.sym), ...(S.data?.market || []).map(m => m.s)])].map(s => `<option value="${esc(s)}">`).join('');
     const M = st.moves || []; const pnl = M.reduce((t, m) => t + (m.pnl || 0), 0);
     $('#mvSub').textContent = M.length ? `${M.length} mouvement(s) · ventes : ${pnl >= 0 ? '+' : ''}${fc(pnl)} réalisés` : '';
-    $('#mvList').innerHTML = M.length ? M.slice(0, 30).map(m => `<div class="li">${logo(m.s, 32)}<div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="badge ${MV[m.t][1]}" style="padding:2px 8px;font-size:11px">${MV[m.t][0]}</span><b>${fq(m.q)} ${esc(m.s)}</b></div>
+    $('#mvList').innerHTML = M.length ? M.slice(0, 30).map(m => `<div class="li">${logo(m.s, 32)}<div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="badge ${MV[m.t][1]}" style="padding:2px 8px;font-size:11px">${MV[m.t][0]}</span><b>${fq(m.q)} ${esc(m.s)}</b>${m.auto ? '<span class="tag b-acc">via Trades</span>' : ''}</div>
       <div class="mute" style="font-size:12px">${new Date(m.d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}${m.p ? ' · ' + fp(m.p) : ''}${m.cur ? ` · ${m.dS < 0 ? '−' : '+'}${fq(Math.abs(m.dS))} ${esc(m.cur)}` : ''}${m.pnl != null ? ` · <span class="${m.pnl >= 0 ? 'up' : 'down'}">${m.pnl >= 0 ? '+' : ''}${fc(m.pnl)}</span>` : ''}</div></div>
       <button class="ghost" data-mvu="${m.id}" style="padding:6px 10px;font-size:12.5px">Annuler</button></div>`).join('') : '<div class="empty">Aucun mouvement enregistré. Chaque achat, vente, dépôt ou retrait saisi ici met à jour ta quantité et ton stablecoin.</div>';
     document.querySelectorAll('[data-mvu]').forEach(b => b.onclick = () => { if (b.dataset.c) mvUndo(+b.dataset.mvu); else { b.dataset.c = 1; b.textContent = 'Confirmer'; b.classList.remove('ghost'); } });
@@ -333,8 +335,47 @@
   ['mvS', 'mvQ', 'mvP', 'mvC'].forEach(id => $('#' + id).addEventListener('input', mvPreview));
   $('#mvF').onsubmit = e => { e.preventDefault(); mvSave(); }; $('#mvOk').onclick = mvSave;
 
+  /* ---------- trades réels → portefeuille : une seule saisie ---------- */
+  function syncTrades() {
+    const done = new Set(LS.get('pfSync', [])); const first = !LS.get('pfSyncInit', false); const todo = [];
+    for (const t of S.trades.filter(t => !t.paper)) {
+      const ev = [[t.id + ':o', 'buy', t.q, t.e]];
+      const units = (t.status === 'closed' ? t.units : evalPos(t).units) || [];
+      for (let k = 1; k <= (t.status === 'closed' ? units.length - 1 : (t.ack || 0)); k++) if (units[k]) ev.push([t.id + ':a' + k, 'buy', units[k].q, units[k].px]);
+      if (t.status === 'closed' && t.x) ev.push([t.id + ':c', 'sell', units.reduce((a, u) => a + (u.q || 0), 0) || t.q, t.x]);
+      for (const e of ev) if (!done.has(e[0])) { done.add(e[0]); if (!first) todo.push([...e, t.s]); }
+    }
+    LS.set('pfSync', [...done]); LS.set('pfSyncInit', true);
+    if (!todo.length) return; const st = PF.get();
+    for (const [, type, q, p, s] of todo) applyMove(st, type, s, q, p, 'USDT', true);
+    PF.set(st);
+  }
+
+  /* ---------- portefeuille témoin : la méthode appliquée seule depuis son lancement ---------- */
+  let TW = null, twAsked = false;
+  const twCard = document.createElement('div'); twCard.className = 'card'; twCard.id = 'twCard';
+  const homeSec = document.getElementById('v-home'); homeSec.insertBefore(twCard, homeSec.children[1] || null);
+  async function twLoad() { if (twAsked) return; twAsked = true; try { const r = await fetch('data/track.json?t=' + Date.now()); if (r.ok) { TW = await r.json(); render(); } } catch (e) { } }
+  function twChart(cv) {
+    const W = 640, H = 170, P = 6; const all = cv.flatMap(r => [r[1], r[2]]); let lo = Math.min(...all), hi = Math.max(...all); if (hi - lo < 1) { hi += 50; lo -= 50; }
+    const x = i => P + i * (W - 2 * P) / Math.max(1, cv.length - 1), y = v => P + (hi - v) * (H - 2 * P) / (hi - lo);
+    const path = k => cv.map((r, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" role="img" aria-label="Courbe du portefeuille témoin comparée au BTC"><line x1="0" x2="${W}" y1="${y(cv[0][1])}" y2="${y(cv[0][1])}" stroke="var(--line)" stroke-dasharray="3 4"/><path d="${path(2)}" fill="none" stroke="var(--grey)" stroke-width="2" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/><path d="${path(1)}" fill="none" stroke="var(--acc)" stroke-width="3" vector-effect="non-scaling-stroke"/></svg>`;
+  }
+  function twView() {
+    twLoad(); if (!TW) { twCard.innerHTML = '<div class="ctitle"><h2>Portefeuille témoin</h2></div><p class="note">Le portefeuille témoin démarre au prochain scan : la méthode y est appliquée seule, chaque nuit, avec 10 000 $ fictifs.</p>'; return; }
+    const c = TW.curve.at(-1), perf = (c[1] / TW.cap0 - 1) * 100, bp = (c[2] / TW.cap0 - 1) * 100; const C = TW.closed || []; const win = C.filter(t => t.pnl > 0).length;
+    const since = new Date(TW.start).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    twCard.innerHTML = `<div class="ctitle"><h2>Portefeuille témoin</h2><span class="sub">la méthode seule, depuis le ${since}</span></div>
+      <div class="kpi3" style="margin-top:0;grid-template-columns:repeat(auto-fit,minmax(110px,1fr))"><div><span>Témoin</span><b class="num ${perf >= 0 ? 'up' : 'down'}">${fpc(perf)}</b><span>${fc(c[1])}</span></div><div><span>BTC conservé</span><b class="num ${bp >= 0 ? 'up' : 'down'}">${fpc(bp)}</b><span>même départ</span></div><div><span>Trades clos</span><b class="num">${C.length}</b><span>${C.length ? Math.round(win / C.length * 100) + ' % gagnants' : 'aucun encore'}</span></div></div>
+      ${TW.curve.length > 1 ? `<div style="margin-top:12px">${twChart(TW.curve)}</div><div class="chips" style="font-size:12px;color:var(--ink2)"><span>━ témoin</span><span>┅ BTC</span></div>` : '<p class="note" style="margin-top:10px">La courbe se dessine nuit après nuit.</p>'}
+      ${TW.pos.length ? `<div class="mute" style="font-size:12.5px;margin:12px 0 2px">En cours</div>${TW.pos.map(p => `<div class="li">${logo(p.s, 30)}<div class="mid"><b>${esc(p.s)}</b><div class="mute" style="font-size:12px">depuis le ${new Date(p.d0).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} · ${p.units.length} entrée(s) · stop ${fp(p.stop)}</div></div><div class="right"><span class="num ${(p.value || p.cost) >= p.cost ? 'up' : 'down'}">${fpc(((p.value || p.cost) / p.cost - 1) * 100)}</span></div></div>`).join('')}` : '<p class="note" style="margin-top:10px">Aucune position ouverte.</p>'}
+      ${C.length ? `<div class="mute" style="font-size:12.5px;margin:12px 0 2px">Derniers trades clos</div>${C.slice(0, 5).map(t => `<div class="li">${logo(t.s, 30)}<div class="mid"><b>${esc(t.s)}</b><div class="mute" style="font-size:12px">${new Date(t.d0).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} → ${new Date(t.d1).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} · ${esc(t.why)}</div></div><div class="right"><span class="num ${t.pct >= 0 ? 'up' : 'down'}">${fpc(t.pct)}</span></div></div>`).join('')}` : ''}
+      <p class="note" style="margin-top:10px">10 000 $ fictifs, 1 % de risque par entrée, 3 positions au plus, frais 0,1 %. Calculé chaque nuit par le serveur, impossible à retoucher : c’est la preuve en réel de la méthode, au fil de l’eau.</p>`;
+  }
+
   /* ---------- branchement sur le rendu principal ---------- */
   const baseRender = render;
-  render = function () { baseRender(); if (!S.data) return; if (S.view === 'pf') { pfView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
+  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') twView(); if (S.view === 'pf') { pfView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
   nav();
 })();
