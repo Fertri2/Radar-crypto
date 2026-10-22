@@ -383,16 +383,18 @@
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
   })();
   let instEvt = null; window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instEvt = e; render(); });
-  window.addEventListener('appinstalled', () => { LS.set('instHide', true); render(); });
+  window.addEventListener('appinstalled', () => { LS.set('instHide', 'installed'); render(); });
   const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const instCard = document.createElement('div'); instCard.className = 'card'; instCard.id = 'instCard'; homeSec.insertBefore(instCard, twCard);
+  const instB = document.createElement('button'); instB.className = 'ghost'; instB.textContent = 'Installer l’app sur ce téléphone'; document.getElementById('showOnb')?.after(instB);
+  instB.onclick = () => { LS.set('instHide', false); go('home'); };
   function instView() {
-    if (standalone() || LS.get('instHide', false)) { instCard.hidden = true; return; } instCard.hidden = false;
+    const hid = LS.get('instHide', false); if (standalone() || hid === 'installed' || (typeof hid === 'number' && Date.now() - hid < 7 * 864e5)) { instCard.hidden = true; return; } instCard.hidden = false;
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const how = instEvt ? 'Une vraie app sur ton écran d’accueil, en plein écran, qui s’ouvre même sans réseau.' : ios ? 'Dans Safari : bouton Partager (carré avec une flèche), puis « Sur l’écran d’accueil ».' : 'Dans Chrome : menu ⋮ en haut à droite, puis « Installer l’application » ou « Ajouter à l’écran d’accueil ».';
     instCard.innerHTML = `<div style="display:flex;gap:12px;align-items:center"><img src="icon-192.png" width="48" height="48" style="border-radius:14px;flex:none" alt=""><div style="flex:1;min-width:0"><b>Installe Radar sur ton téléphone</b><div class="mute" style="font-size:13px;margin-top:2px">${how}</div></div></div>
       <div class="btns" style="margin-top:10px">${instEvt ? '<button class="pri" id="instGo">Installer</button>' : ''}<button class="ghost" id="instNo">Plus tard</button></div>`;
-    $('#instNo').onclick = () => { LS.set('instHide', true); instView(); };
+    $('#instNo').onclick = () => { LS.set('instHide', Date.now()); instView(); };
     if (instEvt) $('#instGo').onclick = async () => { instEvt.prompt(); try { await instEvt.userChoice; } catch (e) { } instEvt = null; instView(); };
   }
 
