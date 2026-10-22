@@ -322,7 +322,7 @@ async function main() {
   try {
     const { st: T, fresh } = await runTrack(out, KL);
     writeFileSync('site/data/track.json', JSON.stringify(T));
-    if (fresh) { try { tg = await telegram(out, T); } catch (e) { tg = 'erreur : ' + e.message; } }
+    if (fresh || process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') { try { tg = await telegram(out, T); } catch (e) { tg = 'erreur : ' + e.message; } }
   } catch (e) {
     if (/illisible/.test(e.message)) { console.error(e.message); process.exit(1); }
     errors.push('Portefeuille témoin : ' + e.message); out.errors = errors.slice(0, 20);
