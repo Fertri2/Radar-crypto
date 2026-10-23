@@ -349,8 +349,8 @@ async function runTrend(out, K) {
 }
 
 // Rotation des 5 géants (en papier) : la plus forte sur 12 semaines parmi les 5 cryptos les plus échangées
-const ROT = { n: 5, look: 84, ma: 100, tv: 0.40, url: 'https://fertri2.github.io/Radar-crypto/data/rot.json', cap0: 10000, fee: 0.001, slip: 0.001, excl: new Set(['BNB']) };
-function rotSignal(KL, btcOn) {
+const ROT = { n: 5, look: 84, ma: 100, tv: 0.40, url: 'https://fertri2.github.io/Radar-crypto/data/rot.json', cap0: 10000, fee: 0.001, slip: 0.001, excl: new Set(['BNB']), capEur: 5000, maxUp: 0.03 };
+function rotSignal(KL, btcOn, btcDist) {
   const U = [];
   for (const [s, k] of KL) {
     if (MEME.has(s) || ETHIC.has(s) || STABLE.has(s) || ROT.excl.has(s) || k.length < ROT.ma + 1 || k.length < ROT.look + 1) continue;
@@ -361,7 +361,7 @@ function rotSignal(KL, btcOn) {
   }
   const top = U.sort((a, b) => b.qv - a.qv).slice(0, ROT.n);
   const ok = top.filter(x => x.above && x.mom > 0).sort((a, b) => b.mom - a.mom); const pick = btcOn && ok.length ? ok[0] : null;
-  return { top: top.map(x => ({ s: x.s, p: sig4(x.p), mom: +(x.mom * 100).toFixed(1), above: x.above, dist: +x.dist.toFixed(1), vol: +x.vol.toFixed(2) })), pick: pick ? pick.s : null, w: pick ? +Math.min(1, ROT.tv / pick.vol).toFixed(3) : 0, btcOn };
+  return { top: top.map(x => ({ s: x.s, p: sig4(x.p), mom: +(x.mom * 100).toFixed(1), above: x.above, dist: +x.dist.toFixed(1), vol: +x.vol.toFixed(2) })), pick: pick ? pick.s : null, w: pick ? +Math.min(1, ROT.tv / pick.vol).toFixed(3) : 0, btcOn, btcDist: +(+btcDist).toFixed(1), nUp: top.filter(x => x.above).length, maxUp: ROT.maxUp };
 }
 async function runRot(out, KL) {
   const day = out.day; let st = await loadJson(ROT.url); const sig = out.rot; const px = s => { const k = KL.get(s); return k && k.length ? +k.at(-1)[4] : null; };
@@ -370,13 +370,14 @@ async function runRot(out, KL) {
   const ev = []; const sunday = new Date(day + 'T00:00:00Z').getUTCDay() === 0;
   if (st.pos) { const p = px(st.pos.s); if (p) st.pos.last = p; }
   const eqv = () => st.cash + (st.pos ? st.pos.q * st.pos.last : 0);
-  const sellAll = () => { const g = st.pos.q * st.pos.last * (1 - ROT.slip) * (1 - ROT.fee); st.cash += g; ev.push(`Vente ${st.pos.s} : ${Math.round(g).toLocaleString('fr-FR')} $`); st.trades.unshift({ d: day, a: st.pos.s, side: 'vente', usd: Math.round(g) }); st.pos = null; };
+  const sellAll = () => { const g = st.pos.q * st.pos.last * (1 - ROT.slip) * (1 - ROT.fee); st.cash += g; st.orders.push({ side: 'vente', s: st.pos.s, ref: sig4(st.pos.last) }); ev.push(`Vente ${st.pos.s} : ${Math.round(g).toLocaleString('fr-FR')} $`); st.trades.unshift({ d: day, a: st.pos.s, side: 'vente', usd: Math.round(g) }); st.pos = null; };
   if (sunday || !st.lastRebal) {
+    st.orders = []; st.ordersDay = day;
     if (st.pos && st.pos.s !== sig.pick) sellAll();
     if (sig.pick) { const p = px(sig.pick); const E = eqv(); const cur = st.pos ? st.pos.q * p : 0; const diff = E * sig.w - cur;
       if (!st.pos || Math.abs(diff) >= E * 0.02) {
-        if (diff > 0) { const usd = Math.min(diff, st.cash / (1 + ROT.fee)); const q = usd / (p * (1 + ROT.slip)); st.cash -= usd * (1 + ROT.fee); st.pos = st.pos ? { s: st.pos.s, q: st.pos.q + q, last: p } : { s: sig.pick, q, last: p }; ev.push(`Achat ${sig.pick} : ${Math.round(usd).toLocaleString('fr-FR')} $`); st.trades.unshift({ d: day, a: sig.pick, side: 'achat', usd: Math.round(usd) }); }
-        else if (st.pos) { const q = Math.min(st.pos.q, -diff / p); st.pos.q -= q; const g = q * p * (1 - ROT.slip) * (1 - ROT.fee); st.cash += g; ev.push(`Allègement ${sig.pick} : ${Math.round(g).toLocaleString('fr-FR')} $`); st.trades.unshift({ d: day, a: sig.pick, side: 'vente', usd: Math.round(g) }); }
+        if (diff > 0) { const usd = Math.min(diff, st.cash / (1 + ROT.fee)); const q = usd / (p * (1 + ROT.slip)); st.cash -= usd * (1 + ROT.fee); st.orders.push({ side: st.pos ? 'renfort' : 'achat', s: sig.pick, ref: sig4(p), max: sig4(p * (1 + ROT.maxUp)), w: sig.w }); st.pos = st.pos ? { s: st.pos.s, q: st.pos.q + q, last: p } : { s: sig.pick, q, last: p }; ev.push(`Achat ${sig.pick} : ${Math.round(usd).toLocaleString('fr-FR')} $`); st.trades.unshift({ d: day, a: sig.pick, side: 'achat', usd: Math.round(usd) }); }
+        else if (st.pos) { const q = Math.min(st.pos.q, -diff / p); st.pos.q -= q; const g = q * p * (1 - ROT.slip) * (1 - ROT.fee); st.cash += g; st.orders.push({ side: 'allègement', s: sig.pick, ref: sig4(p), w: sig.w }); ev.push(`Allègement ${sig.pick} : ${Math.round(g).toLocaleString('fr-FR')} $`); st.trades.unshift({ d: day, a: sig.pick, side: 'vente', usd: Math.round(g) }); }
       } }
     st.lastRebal = day;
   }
@@ -397,7 +398,15 @@ async function telegram(out, T, TR, RO) {
     if (TR) { const c = TR.curve.at(-1); L.push(`Témoin tendance depuis le ${new Date(TR.start).toLocaleDateString('fr-FR')} : ${pc((c[1] / TR.cap0 - 1) * 100)} (BTC ${pc((c[2] / TR.cap0 - 1) * 100)})`); TR.events.forEach(e => L.push('• ' + e)); }
   }
   const ro = out.rot; if (ro) {
-    L.push('', '<b>Rotation des 5 géants (en papier)</b>', ro.pick ? `Cible : ${ro.pick} à ${Math.round(ro.w * 100)} %, le reste en stablecoin` : 'Cible : 100 % stablecoin', 'Les 5 : ' + ro.top.map(x => `${x.s} ${pc(x.mom)}`).join(' · '));
+    const fx = out.fx || 1.16, cap = ROT.capEur; const eu = v => Math.round(v).toLocaleString('fr-FR') + ' €';
+    L.push('', `<b>Rotation des 5 géants${RO?.rebal ? ' · ordres du lundi' : ''}</b> (pour ${eu(cap)})`, `Marché : ${ro.btcOn ? 'haussier' : 'baissier'} (BTC ${pc(ro.btcDist)} vs moyenne 100 j) · ${ro.nUp}/5 géants en tendance`);
+    if (RO?.rebal && RO.orders?.length) { for (const o of RO.orders) { const x = ro.top.find(t => t.s === o.s);
+        if (o.side === 'vente') L.push(`🔴 Vendre tout ton ${o.s} au marché (référence ${f(o.ref)} $)`);
+        else if (o.side === 'allègement') L.push(`🟠 Alléger ${o.s} pour revenir à ${eu(cap * o.w)}`);
+        else L.push(`🟢 ${o.side === 'renfort' ? 'Renforcer' : 'Acheter'} ${o.s} : ${eu(cap * o.w)} ≈ ${f(cap * o.w * fx / o.ref)} ${o.s}, référence ${f(o.ref)} $, ne paie pas plus de ${f(o.max)} $`); } }
+    else if (RO?.rebal) L.push(ro.pick ? `Rien à faire : garde ton ${ro.pick} (${eu(cap * ro.w)}).` : 'Rien à faire : reste en stablecoin.');
+    else L.push(ro.pick ? `Cible du jour : ${ro.pick} à ${Math.round(ro.w * 100)} % (${eu(cap * ro.w)}). Ordres seulement lundi.` : 'Cible du jour : 100 % stablecoin. Ordres seulement lundi.');
+    L.push('Les 5 : ' + ro.top.map(x => `${x.s} ${pc(x.mom)}`).join(' · '));
     if (RO) { const c = RO.curve.at(-1); L.push(`Témoin rotation depuis le ${new Date(RO.start).toLocaleDateString('fr-FR')} : ${pc((c[1] / RO.cap0 - 1) * 100)} (BTC ${pc((c[2] / RO.cap0 - 1) * 100)})`); RO.events.forEach(e => L.push('• ' + e)); }
   }
   L.push('', '<b>Cassure altcoins (expérimental, en papier)</b>');
@@ -483,7 +492,7 @@ async function main() {
     errors.push('Tendance : ' + e.message); out.errors = errors.slice(0, 20);
   }
   let RO = null, roFresh = false;
-  try { out.rot = rotSignal(KL, btc.on); const r = await runRot(out, KL); RO = r.st; roFresh = r.fresh; writeFileSync('site/data/rot.json', JSON.stringify(RO)); }
+  try { out.rot = rotSignal(KL, btc.on, btc.dist); const r = await runRot(out, KL); RO = r.st; roFresh = r.fresh; writeFileSync('site/data/rot.json', JSON.stringify(RO)); }
   catch (e) { if (/illisible/.test(e.message)) { console.error(e.message); process.exit(1); } errors.push('Rotation : ' + e.message); out.errors = errors.slice(0, 20); }
   try {
     const { st: T, fresh } = await runTrack(out, KL);
