@@ -231,6 +231,12 @@
       ['Achat à l’ouverture suivante', 'Stop posé tout de suite au niveau SL affiché. Cassure : objectif à 3 fois le risque. Repli : stop suiveur à 3 fois la variation moyenne.'],
       ['Taille de position', 'Risque 0,5 à 1 % du capital par trade, pas plus. Les séries de pertes peuvent être longues.']],
       note: 'Avantage mesuré réel mais mince (+0,06 R par trade depuis 2021). À tester en papier d’abord. Actions SPUS : halal (filtre AAOIFI). Actions européennes : conformité à vérifier toi-même.' },
+    etf: { t: 'Actions : tendance ETF halal', tab: 'stk', tabL: 'Actions', steps: [
+      ['Choisis un ETF', 'Un seul suffit : ISWD (monde) ou SPUS / ISUS (États-Unis). Tous sont filtrés selon la charia. Les versions UCITS s’achètent en compte-titres en France.'],
+      ['Le vendredi soir', 'Ouvre l’onglet Actions, carte « ETF halal · tendance ». DEDANS : le prix est au-dessus de sa moyenne des 200 derniers jours.'],
+      ['DEDANS', 'Détiens l’ETF. On ne touche à rien de la semaine.'],
+      ['DEHORS', 'Vends et garde les liquidités, sans placement à intérêt. Rachète le jour où il repasse DEDANS un vendredi.']],
+      note: 'Le test complet est recalculé chaque nuit sur la carte. Sur les actions, ce filtre limite surtout les grosses chutes (2008, 2020, 2022) ; il peut rapporter un peu moins que garder. Pas un conseil en investissement.' },
     mom: { t: 'Actions : momentum halal mensuel', tab: 'stk', tabL: 'Actions', steps: [
       ['Une fois par mois', 'Le premier jour de bourse du mois, ouvre l’onglet Actions : la liste des 10 actions du mois est prête.'],
       ['Filtre de marché', 'Si le S&P 500 est sous sa moyenne 200 jours ce jour-là, on reste en liquidités tout le mois.'],
@@ -269,7 +275,7 @@
   }
   $('#howSel').onchange = e => howShow(e.target.value);
   howShow(LS.get('howSel', 'trend'));
-  const CTX = { home: 'trend', trades: 'crypto', mkt: 'ana', stk: 'swing', pf: 'pf' };
+  const CTX = { home: 'trend', trades: 'crypto', mkt: 'ana', stk: 'etf', pf: 'pf' };
   help.onclick = () => { if (CTX[S.view]) howShow(CTX[S.view]); go('how'); };
 
   /* ---------- journal des mouvements : achat, vente, dépôt, retrait, avec impact sur le stablecoin ---------- */
@@ -449,20 +455,55 @@
   function trView() {
     trLoad(); const T = S.data?.trend; if (!T) { trCard.innerHTML = '<div class="ctitle"><h2>Tendance BTC + ETH</h2></div><p class="note">Disponible après le prochain scan de la nuit.</p>'; return; }
     const F = fx(); const cap = +LS.get('trCap', 1000) || 0; const A = T.assets;
-    const row = a => { const x = A[a]; const eur = cap * x.w; return `<div class="li">${logo(a, 36)}<div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>${a}</b><span class="badge ${x.in ? 'b-up' : 'b-down'}" style="padding:2px 10px;font-size:11.5px">${x.in ? 'DEDANS' : 'DEHORS'}</span></div><div class="mute" style="font-size:12px">${fpc(x.dist)} vs moyenne 100 j · agitation ${Math.round(x.vol * 100)} %/an</div></div>
+    const row = a => { const x = A[a]; const eur = cap * x.w; return `<div class="li">${logo(a, 36)}<div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>${a}</b><span class="badge ${x.in ? 'b-up' : 'b-down'}" style="padding:2px 10px;font-size:11.5px">${x.in ? 'DEDANS' : 'DEHORS'}</span>${Math.abs(x.dist) < 3 ? '<span class="badge b-warn" style="padding:2px 8px;font-size:11px">proche de la bascule</span>' : ''}</div><div class="mute" style="font-size:12px">${fpc(x.dist)} vs moyenne 100 j · agitation ${Math.round(x.vol * 100)} %/an</div></div>
       <div class="right"><b class="num">${fe(eur)}</b><span class="mute">${x.w ? Math.round(x.w * 100) + ' % · ' + fq(eur * F / x.p) + ' ' + a : 'rien à détenir'}</span></div></div>`; };
     const cash = cap * T.cash;
+    const flips = TR?.alloc && !TR.rebal ? ['BTC', 'ETH'].filter(a => ((TR.alloc[a] || 0) > 0) !== A[a].in) : [];
+    const flipH = flips.map(a => `<div style="margin-top:8px;background:var(--warnbg);color:var(--warn);border-radius:12px;padding:8px 12px;font-size:13px"><b>${a} ${A[a].in ? 'repasse au-dessus' : 'passe sous'} sa moyenne depuis lundi.</b> On ne bouge pas avant lundi : ${A[a].in ? 'achat' : 'vente'} seulement si c’est encore vrai à la clôture de dimanche.</div>`).join('');
+    const H = Object.assign({ BTC: 0, ETH: 0, st: 0 }, LS.get('trHold', {}));
+    const tot = H.BTC * A.BTC.p / F + H.ETH * A.ETH.p / F + H.st;
+    const ordL = ['BTC', 'ETH'].map(a => { const cur = H[a] * A[a].p / F, tgt = tot * A[a].w, d = tgt - cur;
+      if (Math.abs(d) < tot * 0.01 && !(tgt === 0 && cur > 0)) return `<div class="li"><div class="mid"><b>${a}</b><div class="mute" style="font-size:12px">déjà à la cible (${fe(cur)})</div></div><div class="right"><span class="badge b-grey">rien à faire</span></div></div>`;
+      return `<div class="li"><div class="mid"><b>${d > 0 ? 'Acheter' : 'Vendre'} ${fq(Math.abs(d) * F / A[a].p)} ${a}</b><div class="mute" style="font-size:12px">tu as ${fe(cur)} · cible ${fe(tgt)}</div></div><div class="right"><b class="num ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${fe(Math.abs(d))}</b></div></div>`; }).join('');
+    const inp = (id, lab, v, st) => `<label class="f" style="flex:1 1 80px;min-width:0">${lab}<input style="width:100%;min-width:0" id="${id}" type="number" min="0" step="${st}" value="${v || ''}" placeholder="0"></label>`;
+    const ordH = `<details id="trOrd" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"${LS.get('trOrdOpen', false) ? ' open' : ''}><summary style="cursor:pointer;font-weight:700;font-size:14px">Mes ordres pour lundi</summary>
+      <p class="mute" style="font-size:12.5px;margin:6px 0 0">Indique ce que tu détiens pour la tendance : le site calcule quoi acheter ou vendre. Rien ne quitte ton appareil.</p>
+      <div class="btns" style="margin-top:8px;gap:10px;align-items:flex-end">${inp('trhB', 'BTC', H.BTC, 'any')}${inp('trhE', 'ETH', H.ETH, 'any')}${inp('trhS', 'Stable (€)', H.st, 10)}<button class="ghost" id="trhPf">Reprendre mon portefeuille</button></div>
+      ${tot > 0 ? `<div style="display:flex;justify-content:space-between;margin-top:10px;font-size:13.5px"><span class="mute">Capital tendance détenu</span><b class="num">${fe(tot)}</b></div><div class="list" style="margin-top:4px">${ordL}<div class="li"><div class="mid"><b>Stablecoin après ordres</b></div><div class="right"><b class="num">${fe(tot * T.cash)}</b></div></div></div><p class="note" style="margin-top:6px">${new Date().getDay() === 1 ? 'C’est lundi : passe ces ordres en spot.' : 'Lecture du jour. Les ordres se passent seulement lundi, avec la lecture de dimanche soir.'} Écarts de moins de 1 % ignorés.</p>` : ''}</details>`;
     let tw = '';
     if (TR && TR.curve?.length) { const c = TR.curve.at(-1); const perf = (c[1] / TR.cap0 - 1) * 100, bp = (c[2] / TR.cap0 - 1) * 100;
       tw = `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap"><b style="font-size:14px">Témoin tendance depuis le ${new Date(TR.start).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}</b><span class="num"><b class="${perf >= 0 ? 'up' : 'down'}">${fpc(perf)}</b> <span class="mute">· BTC ${fpc(bp)}</span></span></div>
         ${TR.curve.length > 1 ? `<div style="margin-top:8px">${twChart(TR.curve)}</div>` : '<p class="note" style="margin-top:6px">La courbe se dessine semaine après semaine (10 000 $ fictifs, mêmes règles).</p>'}</div>`; }
     trCard.innerHTML = `<div class="ctitle"><h2>Tendance BTC + ETH</h2><span class="sub">méthode principale</span></div>
       <div style="background:var(--surf2);border-radius:14px;padding:10px 12px;font-size:13.5px">Prochain ajustement : <b>${nextMonday()}</b>. Détiens les montants ci-dessous, le reste en stablecoin.</div>
-      <div class="list" style="margin-top:6px">${row('BTC')}${row('ETH')}
+      ${flipH}<div class="list" style="margin-top:6px">${row('BTC')}${row('ETH')}
         <div class="li"><span class="logo" style="background:#0E9F6E;width:36px;height:36px;font-size:11px">USD</span><div class="mid"><b>Stablecoin</b><div class="mute" style="font-size:12px">réserve en attendant la tendance</div></div><div class="right"><b class="num">${fe(cash)}</b><span class="mute">${Math.round(T.cash * 100)} %</span></div></div></div>
-      <div class="btns" style="margin-top:10px;align-items:flex-end"><label class="f">Capital consacré à la tendance (€)<input id="trCapI" type="number" min="0" step="100" value="${cap}"></label><button class="ghost" id="trHow">Comment ça marche ?</button></div>${tw}`;
+      <div class="btns" style="margin-top:10px;align-items:flex-end"><label class="f">Capital consacré à la tendance (€)<input id="trCapI" type="number" min="0" step="100" value="${cap}"></label><button class="ghost" id="trHow">Comment ça marche ?</button></div>${ordH}${tw}`;
     $('#trCapI').onchange = e => { LS.set('trCap', Math.max(0, +e.target.value || 0)); trView(); };
     $('#trHow').onclick = () => { howShow('trend'); go('how'); };
+    $('#trOrd').ontoggle = e => LS.set('trOrdOpen', e.target.open);
+    const hs = (k, v) => { const h = Object.assign({ BTC: 0, ETH: 0, st: 0 }, LS.get('trHold', {})); h[k] = Math.max(0, +v || 0); LS.set('trHold', h); LS.set('trOrdOpen', true); trView(); };
+    $('#trhB').onchange = e => hs('BTC', e.target.value); $('#trhE').onchange = e => hs('ETH', e.target.value); $('#trhS').onchange = e => hs('st', e.target.value);
+    $('#trhPf').onclick = () => { const as = PF.get().assets.filter(x => !x.watch); const q = s => as.filter(x => x.sym === s).reduce((t, x) => t + (+x.qty || 0), 0);
+      LS.set('trHold', { BTC: q('BTC'), ETH: q('ETH'), st: Math.round((q('USDT') + q('USDC') + q('FDUSD')) / F + q('EURC')) }); LS.set('trOrdOpen', true); trView(); };
+  }
+
+  /* ---------- actions : tendance des ETF halal (moyenne 200 jours, décision le vendredi) ---------- */
+  const etfCard = document.createElement('div'); etfCard.className = 'card'; etfCard.id = 'etfCard'; stkSec.insertBefore(etfCard, swCard);
+  const mini = (p, m) => { const v = p.concat(m.filter(x => x != null)); const lo = Math.min(...v), hi = Math.max(...v); const pt = a => a.map((y, i) => y == null ? '' : `${(i ? 'L' : 'M')}${(i * 96 / (a.length - 1)).toFixed(1)},${(30 - (y - lo) / (hi - lo || 1) * 28).toFixed(1)}`).join('').replace(/^L/, 'M');
+    return `<svg viewBox="0 0 96 32" width="96" height="32" aria-hidden="true"><path d="${pt(m)}" fill="none" stroke="var(--mute)" stroke-width="1.3" stroke-dasharray="3 2"/><path d="${pt(p)}" fill="none" stroke="var(--acc)" stroke-width="1.8"/></svg>`; };
+  function etfView() {
+    const E = S.data?.etf; const head = '<div class="ctitle"><h2>ETF halal · tendance</h2><span class="sub">décision le vendredi soir</span></div>';
+    if (!E?.list?.length) { etfCard.innerHTML = head + '<div class="empty">Disponible après le prochain scan de la nuit.</div>'; return; }
+    const pick = LS.get('etfPick', E.list[0].s); const x = E.list.find(e => e.s === pick) || E.list[0]; const b = x.bt;
+    etfCard.innerHTML = head + `<div class="list">${E.list.map(e => `<div class="li" style="cursor:pointer${e.s === x.s ? ';background:var(--surf2);border-radius:12px' : ''}" data-etf="${esc(e.s)}"><span class="logo" style="background:hsl(${hue(e.s)} 50% 42%);font-size:10.5px;width:36px;height:36px">${esc(e.s.replace('.L', ''))}</span>
+      <div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b style="font-size:14px">${esc(e.n)}</b><span class="badge ${e.in ? 'b-up' : 'b-down'}" style="padding:2px 10px;font-size:11px">${e.in ? 'DEDANS' : 'DEHORS'}</span>${Math.abs(e.dist) < 2 ? '<span class="badge b-warn" style="padding:2px 8px;font-size:11px">proche</span>' : ''}</div>
+      <div class="mute" style="font-size:12px">${fpc(e.dist)} vs moyenne 200 j · ${e.z}${e.held !== e.in ? ` · <b style="color:var(--warn)">bascule vendredi si ça tient</b>` : ''}</div></div>
+      <div class="right" style="flex-direction:row;align-items:center;gap:8px">${mini(e.spark, e.maSpark)}</div></div>`).join('')}</div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"><b style="font-size:14px">Test ${esc(x.s.replace('.L', ''))} depuis ${new Date(b.from).getFullYear()} (${b.yrs.toLocaleString('fr-FR')} ans)</b>
+      <div class="kpi3" style="grid-template-columns:repeat(2,1fr);margin-top:8px"><div><span>Méthode tendance</span><b class="num">${fpc(b.cagr)}/an</b><span>pire chute ${fpc(b.dd, 0)} · ${b.expo} % du temps investi</span></div><div><span>Garder sans rien faire</span><b class="num">${fpc(b.bh)}/an</b><span>pire chute ${fpc(b.bhDd, 0)}</span></div></div>
+      <p class="note" style="margin-top:8px">Clique un ETF pour voir son test. Règle : au-dessus de la moyenne 200 jours le vendredi soir, on détient ; en dessous, liquidités sans intérêt. Environ ${b.swY.toLocaleString('fr-FR')} changements par an, frais de 0,2 % comptés. Sur les actions, ce filtre sert surtout à couper les grosses chutes ; il peut rapporter un peu moins que garder. Chiffres recalculés chaque nuit, résultats passés. ETF UCITS : accessibles en compte-titres français. Pas un conseil en investissement.</p></div>`;
+    etfCard.querySelectorAll('[data-etf]').forEach(r => r.onclick = () => { LS.set('etfPick', r.dataset.etf); etfView(); });
   }
 
   /* ---------- simulateur d'objectif (apport mensuel nécessaire, 3 scénarios) ---------- */
@@ -496,6 +537,6 @@
 
   /* ---------- branchement sur le rendu principal ---------- */
   const baseRender = render;
-  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') { instView(); trView(); twView(); } if (S.view === 'pf') { pfView(); stView(); simView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') swView(); };
+  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') { instView(); trView(); twView(); } if (S.view === 'pf') { pfView(); stView(); simView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') { etfView(); swView(); } };
   nav();
 })();
