@@ -75,7 +75,7 @@ async function yahoo(sym, range = '2y') {
   const y = /\.(AS|PA|DE|CO|MI|SW|L)$/.test(sym) ? sym : sym.replace(/\./g, '-');
   for (const h of YH) {
     try {
-      const r = await fetch(`${h}/v8/finance/chart/${y}?range=${range}&interval=1d`, { headers: { 'user-agent': 'Mozilla/5.0', accept: 'application/json' } });
+      const r = await fetch(`${h}/v8/finance/chart/${y}?${range === 'max' ? `period1=946684800&period2=${Math.floor(Date.now() / 1000)}` : 'range=' + range}&interval=1d`, { headers: { 'user-agent': 'Mozilla/5.0', accept: 'application/json' } });
       if (!r.ok) continue;
       const j = await r.json(); const res = j.chart?.result?.[0]; if (!res) continue;
       const t = res.timestamp, a = res.indicators.adjclose?.[0]?.adjclose || res.indicators.quote[0].close;
@@ -124,6 +124,7 @@ function swingSetup(A, mkOn) {
 
 // ETF halal : tendance 200 jours, décision en fin de semaine, test sur tout l'historique Yahoo (dividendes inclus, liquidités à 0 %)
 const ETF = [['SPUS', 'SP Funds S&P 500 Sharia', 'US'], ['HLAL', 'Wahed FTSE USA Shariah', 'US'], ['ISWD.L', 'iShares MSCI World Islamic', 'UCITS'], ['ISUS.L', 'iShares MSCI USA Islamic', 'UCITS'], ['ISDE.L', 'iShares MSCI EM Islamic', 'UCITS']];
+const ALT = { 'ISWD.L': ['ISDW.L'] }, ETF_ERR = [];
 const wk = d => Math.floor((Date.parse(d) / 864e5 + 3) / 7);
 function etfTest(d, c, m, cost) {
   const i0 = 199, n = c.length - 1; let v = 1, b = 1, pv = 1, pb = 1, dv = 0, db = 0, pos = c[i0] > m[i0] ? 1 : 0, sw = 0, inn = 0;
@@ -138,8 +139,8 @@ function etfTest(d, c, m, cost) {
 async function etfTrend() {
   const list = [];
   for (const [s, n, z] of ETF) {
-    let k = null; try { k = await yahoo(s, 'max'); } catch (e) { } await sleep(80);
-    if (!k || k.length < 320) continue;
+    let k = null; for (const y of [s, ...(ALT[s] || [])]) { for (let t = 0; t < 2 && !k; t++) { try { k = await yahoo(y, 'max'); } catch (e) { } if (!k) await sleep(1500); } if (k) break; }
+    await sleep(150); if (!k || k.length < 320) { ETF_ERR.push(`${s} : ${k ? k.length + ' séances' : 'pas de données'}`); continue; }
     const d = k.map(x => x[0]), c = k.map(x => x[1]), m = sma(c, 200), i = c.length - 1;
     const lastW = d.slice(0, i).reverse().findIndex(x => wk(x) !== wk(d[i])); const jw = lastW < 0 ? i : i - 1 - lastW;
     list.push({ s, n, z, day: d[i], p: sig4(c[i]), ma: sig4(m[i]), in: c[i] > m[i], dist: +((c[i] / m[i] - 1) * 100).toFixed(2), held: c[jw] > m[jw], r1y: c.length > 253 ? +((c[i] / c[i - 252] - 1) * 100).toFixed(1) : null,
@@ -417,6 +418,7 @@ async function main() {
 
   let stk = null; try { stk = await stocks(); } catch (e) { errors.push('Actions : ' + e.message); }
   let etf = null; try { etf = await etfTrend(); } catch (e) { errors.push('ETF : ' + e.message); }
+  ETF_ERR.forEach(x => errors.push('ETF ' + x));
 
   const out = {
     at: new Date().toISOString(), day: coins.find(c => c.s === 'BTC')?.day, cfg: CFG, btc, fx, okxChecked: !!okx,
