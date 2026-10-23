@@ -212,11 +212,11 @@
   const HOW = {
     trend: { t: 'Tendance BTC + ETH (méthode principale)', tab: 'home', tabL: 'Aujourd’hui', steps: [
       ['Chaque lundi matin', 'Ouvre l’onglet Aujourd’hui (ou lis l’alerte Telegram) : la carte « Tendance BTC + ETH » dit quoi détenir. Le reste de la semaine, on ne touche à rien.'],
-      ['Dedans ou dehors', 'BTC et ETH sont jugés séparément. Prix au-dessus de sa moyenne des 100 derniers jours : DEDANS, on en détient. En dessous : DEHORS, on n’en détient pas.'],
-      ['Combien', 'Chaque crypto peut prendre au plus la moitié du capital tendance. Si elle est très agitée, la part baisse pour viser 40 % de volatilité par an. Le site affiche le montant exact en € et en unités.'],
+      ['4 moyennes, 4 feux', 'BTC et ETH sont jugés séparément, avec 4 moyennes : 50, 100, 150 et 200 jours. Chaque moyenne sous le prix allume un feu vert. 4 feux : DEDANS en plein. 2 feux : à moitié. 0 feu : DEHORS.'],
+      ['Combien', 'Chaque crypto peut prendre au plus la moitié du capital tendance, multipliée par la part de feux verts. Si elle est très agitée, la part baisse pour viser 50 % de volatilité par an. Le site affiche le montant exact en € et en unités.'],
       ['Ajuster', 'Compare avec ce que tu détiens : achète ou vends la différence en spot. Le reste attend en stablecoin, sans « Earn ».'],
       ['Tenir', 'Des baisses de 35 à 50 % peuvent arriver. La méthode limite les krachs, elle ne les supprime pas. Monte le capital par paliers.']],
-      note: 'Testée de 2018 à 2026 sur données réelles : environ +25 à +30 % par an selon le point de départ, pire chute −44 %, contre +21 % et −80 % en gardant du BTC. Résultats passés, aucune garantie.' },
+      note: 'Version optimisée (octobre 2026), testée de juin 2018 à septembre 2026 : +37 %/an, pire chute −42 %, contre +30 %/an et −47 % pour l’ancienne règle à une seule moyenne. Sur 2022–2026 seul : +13 %/an contre +7 %. Elle fait mieux que l’ancienne sur 6 jours de décision sur 7. Résultats passés, aucune garantie.' },
     rot: { t: 'Rotation des 5 géants (en test)', tab: 'home', tabL: 'Aujourd’hui', steps: [
       ['Les 5 géants', 'Chaque lundi, le site prend les 5 cryptos les plus échangées sur 30 jours (hors stablecoins, memecoins, BNB et jetons de prêt).'],
       ['La plus forte', 'Parmi elles, celle qui a le plus monté sur 12 semaines, à condition d’être au-dessus de sa moyenne 100 jours. Une seule à la fois.'],
@@ -462,7 +462,7 @@
   function trView() {
     trLoad(); const T = S.data?.trend; if (!T) { trCard.innerHTML = '<div class="ctitle"><h2>Tendance BTC + ETH</h2></div><p class="note">Disponible après le prochain scan de la nuit.</p>'; return; }
     const F = fx(); const cap = +LS.get('trCap', 1000) || 0; const A = T.assets;
-    const row = a => { const x = A[a]; const eur = cap * x.w; return `<div class="li">${logo(a, 36)}<div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>${a}</b><span class="badge ${x.in ? 'b-up' : 'b-down'}" style="padding:2px 10px;font-size:11.5px">${x.in ? 'DEDANS' : 'DEHORS'}</span>${Math.abs(x.dist) < 3 ? '<span class="badge b-warn" style="padding:2px 8px;font-size:11px">proche de la bascule</span>' : ''}</div><div class="mute" style="font-size:12px">${fpc(x.dist)} vs moyenne 100 j · agitation ${Math.round(x.vol * 100)} %/an</div></div>
+    const row = a => { const x = A[a]; const eur = cap * x.w; return `<div class="li">${logo(a, 36)}<div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>${a}</b>${(() => { const n = x.nMa || 1, u = x.up ?? (x.in ? 1 : 0); return `<span class="badge ${u === n ? 'b-up' : u ? 'b-warn' : 'b-down'}" style="padding:2px 10px;font-size:11.5px">${u === n ? 'DEDANS' : u ? 'PARTIEL' : 'DEHORS'}</span><span style="display:inline-flex;gap:3px" title="moyennes 50, 100, 150 et 200 jours">${Array.from({ length: n }, (_, k) => `<i style="width:9px;height:9px;border-radius:50%;background:${k < u ? 'var(--up)' : 'var(--line)'}"></i>`).join('')}</span>${(x.near ?? Math.abs(x.dist) < 3) ? '<span class="badge b-warn" style="padding:2px 8px;font-size:11px">proche d’un changement</span>' : ''}`; })()}</div><div class="mute" style="font-size:12px">au-dessus de ${x.up ?? (x.in ? 1 : 0)} moyenne${(x.up ?? 0) > 1 ? 's' : ''} sur ${x.nMa || 1} · agitation ${Math.round(x.vol * 100)} %/an</div></div>
       <div class="right"><b class="num">${fe(eur)}</b><span class="mute">${x.w ? Math.round(x.w * 100) + ' % · ' + fq(eur * F / x.p) + ' ' + a : 'rien à détenir'}</span></div></div>`; };
     const cash = cap * T.cash;
     const flips = TR?.alloc && !TR.rebal ? ['BTC', 'ETH'].filter(a => ((TR.alloc[a] || 0) > 0) !== A[a].in) : [];
@@ -546,7 +546,7 @@
 
   /* ---------- simulateur d'objectif (apport mensuel nécessaire, 3 scénarios) ---------- */
   const simCard = document.createElement('div'); simCard.className = 'card'; simCard.id = 'simCard'; stCard.after(simCard);
-  const SIMSC = [['Prudent', .10, 'var(--down)'], ['Central', .20, 'var(--acc)'], ['Historique', .27, 'var(--up)']];
+  const SIMSC = [['Prudent', .10, 'var(--down)'], ['Central', .20, 'var(--acc)'], ['Historique', .35, 'var(--up)']];
   const simGet = () => Object.assign({ mode: 'rente', rente: 2500, cap: 300000, ans: 10, c0: 10000, pm: 1000 }, LS.get('sim', {}));
   function simView() {
     const o = simGet(); const T = o.mode === 'rente' ? o.rente * 12 / 0.04 : o.cap; const n = o.ans * 12;
@@ -567,7 +567,7 @@
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:10px"><span class="mute" style="font-size:13px">Capital nécessaire${o.mode === 'rente' ? ' (25 fois la rente annuelle, retrait de 4 % par an)' : ''}</span><b class="num" style="font-size:22px;white-space:nowrap">${k(T)}</b></div>
       <div class="kpi3" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">${SIMSC.map(([l, r, c], i) => { const m = P[i].findIndex(v => v >= T); return `<div><span>${l} · ${Math.round(r * 100)} %/an</span><b class="num" style="color:${c}">${fe(need(r))}</b><span>par mois · avec ${fe(o.pm)} : ${m < 0 ? '> ' + H / 12 + ' ans' : (m / 12).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' ans'}</span></div>`; }).join('')}</div>
       <div style="margin-top:10px;overflow-x:auto"><svg viewBox="0 0 ${W} ${Ht}" width="100%" role="img" aria-label="Trajectoire du capital selon trois scénarios">${g}</svg></div>
-      <p class="note" style="margin-top:6px">Hypothèses de rendement de la méthode tendance : 27 %/an ≈ test 2018–2026, peu probable à l’avenir ; on planifie sur le central ou le prudent. Des chutes de 35 à 50 % arriveront en route. Sans inflation ni impôts. Pas un conseil en investissement.</p>`;
+      <p class="note" style="margin-top:6px">Hypothèses de rendement de la méthode tendance : 35 %/an ≈ test 2018–2026, peu probable à l’avenir ; on planifie sur le central ou le prudent. Des chutes de 35 à 50 % arriveront en route. Sans inflation ni impôts. Pas un conseil en investissement.</p>`;
     const set = (key, val) => { const s = simGet(); s[key] = val; LS.set('sim', s); simView(); };
     simCard.querySelectorAll('[data-simm]').forEach(b => b.onclick = () => set('mode', b.dataset.simm));
     [['simRente', 'rente'], ['simCap', 'cap'], ['simAns', 'ans'], ['simC0', 'c0'], ['simPm', 'pm']].forEach(([id, key]) => { const e = document.getElementById(id); if (e) e.onchange = () => set(key, +e.value); });
