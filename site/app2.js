@@ -216,7 +216,14 @@
       ['Combien', 'Chaque crypto peut prendre au plus la moitié du capital tendance. Si elle est très agitée, la part baisse pour viser 40 % de volatilité par an. Le site affiche le montant exact en € et en unités.'],
       ['Ajuster', 'Compare avec ce que tu détiens : achète ou vends la différence en spot. Le reste attend en stablecoin, sans « Earn ».'],
       ['Tenir', 'Des baisses de 35 à 50 % peuvent arriver. La méthode limite les krachs, elle ne les supprime pas. Monte le capital par paliers.']],
-      note: 'Testée de 2018 à 2026 sur données réelles : environ +34 % par an, pire chute −40 %, contre +23 % et −81 % en gardant du BTC. Résultats passés, aucune garantie.' },
+      note: 'Testée de 2018 à 2026 sur données réelles : environ +25 à +30 % par an selon le point de départ, pire chute −44 %, contre +21 % et −80 % en gardant du BTC. Résultats passés, aucune garantie.' },
+    rot: { t: 'Rotation des 5 géants (en test)', tab: 'home', tabL: 'Aujourd’hui', steps: [
+      ['Les 5 géants', 'Chaque lundi, le site prend les 5 cryptos les plus échangées sur 30 jours (hors stablecoins, memecoins, BNB et jetons de prêt).'],
+      ['La plus forte', 'Parmi elles, celle qui a le plus monté sur 12 semaines, à condition d’être au-dessus de sa moyenne 100 jours. Une seule à la fois.'],
+      ['Le feu vert', 'BTC doit aussi être au-dessus de sa moyenne 100 jours. Sinon : 100 % stablecoin.'],
+      ['Combien', 'Moins si elle est très agitée (cible 40 % de volatilité par an). Le reste en stablecoin.'],
+      ['Changer', 'Si la cible change un lundi, on vend l’ancienne et on achète la nouvelle. Sinon on ne touche à rien.']],
+      note: 'Méthode créée et testée de 2018 à 2026 : +37 %/an, pire chute −38 %. Les réglages voisins donnent +18 à +28 %/an : une part du résultat est de la chance. Suivie en papier pour la valider en réel. Pas un conseil en investissement.' },
     crypto: { t: 'Cassure altcoins (expérimental)', tab: 'home', tabL: 'Aujourd’hui' },
     ana: { t: 'Analyser un actif', tab: 'mkt', tabL: 'Analyser', steps: [
       ['Tape le symbole', 'Dans l’onglet Analyser : un symbole crypto Binance (SOL, NEAR…) ou une action suivie (NVDA, ASML…). Les suggestions s’affichent pendant la frappe.'],
@@ -488,6 +495,28 @@
       LS.set('trHold', { BTC: q('BTC'), ETH: q('ETH'), st: Math.round((q('USDT') + q('USDC') + q('FDUSD')) / F + q('EURC')) }); LS.set('trOrdOpen', true); trView(); };
   }
 
+  /* ---------- rotation des 5 géants (suivi en papier) ---------- */
+  let RO = null, roAsked = false;
+  const rotCard = document.createElement('div'); rotCard.className = 'card'; rotCard.id = 'rotCard'; trCard.after(rotCard);
+  async function roLoad() { if (roAsked) return; roAsked = true; try { const r = await fetch('data/rot.json?t=' + Date.now()); if (r.ok) { RO = await r.json(); render(); } } catch (e) { } }
+  function rotView() {
+    roLoad(); const X = S.data?.rot; const head = '<div class="ctitle"><h2>Rotation des 5 géants</h2><span class="sub">en papier · test</span></div>';
+    if (!X) { rotCard.innerHTML = head + '<p class="note">Disponible après le prochain scan de la nuit.</p>'; return; }
+    const mx = Math.max(1, ...X.top.map(x => Math.abs(x.mom)));
+    const rows = X.top.map(x => { const me = x.s === X.pick; const bar = Math.round(Math.abs(x.mom) / mx * 100);
+      return `<div class="li"${me ? ' style="background:var(--surf2);border-radius:12px"' : ''}>${logo(x.s, 32)}<div class="mid"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>${esc(x.s)}</b>${me ? '<span class="badge b-up" style="padding:2px 10px;font-size:11px">LA CIBLE</span>' : x.above ? '' : '<span class="badge b-grey" style="padding:2px 8px;font-size:11px">sous sa moyenne</span>'}</div>
+        <div style="height:6px;border-radius:3px;background:var(--line);margin-top:5px;overflow:hidden"><div style="height:100%;width:${bar}%;background:${x.mom >= 0 ? 'var(--up)' : 'var(--down)'}"></div></div></div><div class="right"><b class="num ${x.mom >= 0 ? 'up' : 'down'}">${fpc(x.mom)}</b><span class="mute">12 semaines</span></div></div>`; }).join('');
+    let tw = '';
+    if (RO && RO.curve?.length) { const c = RO.curve.at(-1); const perf = (c[1] / RO.cap0 - 1) * 100, bp = (c[2] / RO.cap0 - 1) * 100;
+      tw = `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap"><b style="font-size:14px">Témoin depuis le ${new Date(RO.start).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}</b><span class="num"><b class="${perf >= 0 ? 'up' : 'down'}">${fpc(perf)}</b> <span class="mute">· BTC ${fpc(bp)}</span></span></div>
+        ${RO.curve.length > 1 ? `<div style="margin-top:8px">${twChart(RO.curve)}</div>` : '<p class="note" style="margin-top:6px">La courbe se dessine semaine après semaine (10 000 $ fictifs).</p>'}</div>`; }
+    rotCard.innerHTML = head + `<div style="background:var(--surf2);border-radius:14px;padding:10px 12px;font-size:13.5px">${X.pick ? `Cette semaine : <b>${esc(X.pick)}</b> à ${Math.round(X.w * 100)} % du capital rotation, le reste en stablecoin.` : `Cette semaine : <b>100 % stablecoin</b>${X.btcOn ? ' (aucune des 5 n’est en hausse au-dessus de sa moyenne).' : ' (BTC sous sa moyenne 100 jours).'}`}</div>
+      <div class="list" style="margin-top:6px">${rows}</div>
+      <p class="note" style="margin-top:8px">On ne détient que la plus forte des 5 cryptos les plus échangées, si elle est au-dessus de sa moyenne 100 jours. BNB exclu (doute halal). Test 2018–2026 : +37 %/an, pire chute −38 %, mais les réglages voisins font +18 à +28 %. Suivi en papier seulement, pas encore validé.</p>
+      <div class="btns" style="margin-top:6px"><button class="ghost" id="rotHow">Comment ça marche ?</button></div>${tw}`;
+    $('#rotHow').onclick = () => { howShow('rot'); go('how'); };
+  }
+
   /* ---------- actions : tendance des ETF halal (moyenne 200 jours, décision le vendredi) ---------- */
   const etfCard = document.createElement('div'); etfCard.className = 'card'; etfCard.id = 'etfCard'; stkSec.insertBefore(etfCard, swCard);
   const mini = (p, m) => { const v = p.concat(m.filter(x => x != null)); const lo = Math.min(...v), hi = Math.max(...v); const pt = a => a.map((y, i) => y == null ? '' : `${(i ? 'L' : 'M')}${(i * 96 / (a.length - 1)).toFixed(1)},${(30 - (y - lo) / (hi - lo || 1) * 28).toFixed(1)}`).join('').replace(/^L/, 'M');
@@ -508,7 +537,7 @@
 
   /* ---------- simulateur d'objectif (apport mensuel nécessaire, 3 scénarios) ---------- */
   const simCard = document.createElement('div'); simCard.className = 'card'; simCard.id = 'simCard'; stCard.after(simCard);
-  const SIMSC = [['Prudent', .10, 'var(--down)'], ['Central', .20, 'var(--acc)'], ['Historique', .34, 'var(--up)']];
+  const SIMSC = [['Prudent', .10, 'var(--down)'], ['Central', .20, 'var(--acc)'], ['Historique', .27, 'var(--up)']];
   const simGet = () => Object.assign({ mode: 'rente', rente: 2500, cap: 300000, ans: 10, c0: 10000, pm: 1000 }, LS.get('sim', {}));
   function simView() {
     const o = simGet(); const T = o.mode === 'rente' ? o.rente * 12 / 0.04 : o.cap; const n = o.ans * 12;
@@ -529,7 +558,7 @@
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:10px"><span class="mute" style="font-size:13px">Capital nécessaire${o.mode === 'rente' ? ' (25 fois la rente annuelle, retrait de 4 % par an)' : ''}</span><b class="num" style="font-size:22px;white-space:nowrap">${k(T)}</b></div>
       <div class="kpi3" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr))">${SIMSC.map(([l, r, c], i) => { const m = P[i].findIndex(v => v >= T); return `<div><span>${l} · ${Math.round(r * 100)} %/an</span><b class="num" style="color:${c}">${fe(need(r))}</b><span>par mois · avec ${fe(o.pm)} : ${m < 0 ? '> ' + H / 12 + ' ans' : (m / 12).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' ans'}</span></div>`; }).join('')}</div>
       <div style="margin-top:10px;overflow-x:auto"><svg viewBox="0 0 ${W} ${Ht}" width="100%" role="img" aria-label="Trajectoire du capital selon trois scénarios">${g}</svg></div>
-      <p class="note" style="margin-top:6px">Hypothèses de rendement de la méthode tendance : 34 %/an = test 2018–2026, peu probable à l’avenir ; on planifie sur le central ou le prudent. Des chutes de 35 à 50 % arriveront en route. Sans inflation ni impôts. Pas un conseil en investissement.</p>`;
+      <p class="note" style="margin-top:6px">Hypothèses de rendement de la méthode tendance : 27 %/an ≈ test 2018–2026, peu probable à l’avenir ; on planifie sur le central ou le prudent. Des chutes de 35 à 50 % arriveront en route. Sans inflation ni impôts. Pas un conseil en investissement.</p>`;
     const set = (key, val) => { const s = simGet(); s[key] = val; LS.set('sim', s); simView(); };
     simCard.querySelectorAll('[data-simm]').forEach(b => b.onclick = () => set('mode', b.dataset.simm));
     [['simRente', 'rente'], ['simCap', 'cap'], ['simAns', 'ans'], ['simC0', 'c0'], ['simPm', 'pm']].forEach(([id, key]) => { const e = document.getElementById(id); if (e) e.onchange = () => set(key, +e.value); });
@@ -537,6 +566,6 @@
 
   /* ---------- branchement sur le rendu principal ---------- */
   const baseRender = render;
-  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') { instView(); trView(); twView(); } if (S.view === 'pf') { pfView(); stView(); simView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') { etfView(); swView(); } };
+  render = function () { baseRender(); if (!S.data) return; try { syncTrades(); } catch (e) { } if (S.view === 'home') { instView(); trView(); rotView(); twView(); } if (S.view === 'pf') { pfView(); stView(); simView(); mvView(); } if (S.view === 'mkt') { fillList(); if (anaLast?.kind === 'crypto' && !$('#anaOut').innerHTML) $('#anaOut').innerHTML = cryptoHtml(anaLast.s, anaLast.A); } if (S.view === 'stk') { etfView(); swView(); } };
   nav();
 })();
