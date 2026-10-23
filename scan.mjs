@@ -303,19 +303,19 @@ async function runTrack(out, KL) {
 
 // ---------- Alerte Telegram du matin (secrets TG_TOKEN et TG_CHAT du dépôt) ----------
 // ---------- Méthode principale : tendance BTC + ETH (moyenne 100 jours, volatilité visée 40 %, ajustement le lundi) ----------
-const TREND = { assets: ['BTC', 'ETH'], ma: 100, tv: 0.40, volN: 30, url: 'https://fertri2.github.io/Radar-crypto/data/trend.json', cap0: 10000, fee: 0.001, slip: 0.001, minTrade: 0.005 };
+const TREND = { assets: ['BTC', 'ETH'], ma: 100, mas: [50, 100, 150, 200], tv: 0.50, volN: 30, url: 'https://fertri2.github.io/Radar-crypto/data/trend.json', cap0: 10000, fee: 0.001, slip: 0.001, minTrade: 0.005 };
 function trendSignal(K) {
   const out = {};
   for (const a of TREND.assets) {
     const k = K[a]; const c = k.map(x => +x[4]); const i = c.length - 1;
-    const ma = c.slice(-TREND.ma).reduce((s, x) => s + x, 0) / TREND.ma;
+    const ma = c.slice(-TREND.ma).reduce((s, x) => s + x, 0) / TREND.ma; const mv = Object.fromEntries(TREND.mas.map(n => [n, c.slice(-n).reduce((s, x) => s + x, 0) / n])); const up = TREND.mas.filter(n => c[i] > mv[n]).length; const frac = up / TREND.mas.length;
     const r = []; for (let j = i - TREND.volN + 1; j <= i; j++) r.push(Math.log(c[j] / c[j - 1]));
     const m = r.reduce((s, x) => s + x, 0) / r.length; const vol = Math.sqrt(r.reduce((s, x) => s + (x - m) ** 2, 0) / (r.length - 1)) * Math.sqrt(365);
-    const inn = c[i] > ma; const w = inn ? Math.min(1, TREND.tv / vol) / TREND.assets.length : 0;
-    out[a] = { p: c[i], ma, in: inn, vol, w, dist: (c[i] / ma - 1) * 100, spark: c.slice(-120).map(sig4), maSpark: c.map((_, j) => j >= TREND.ma - 1 ? c.slice(j - TREND.ma + 1, j + 1).reduce((s, x) => s + x, 0) / TREND.ma : null).slice(-120).map(v => v && sig4(v)) };
+    const inn = up > 0; const w = frac * Math.min(1, TREND.tv / vol) / TREND.assets.length; const near = TREND.mas.some(n => Math.abs(c[i] / mv[n] - 1) < 0.03);
+    out[a] = { p: c[i], ma, in: inn, up, nMa: TREND.mas.length, near, mas: Object.fromEntries(TREND.mas.map(n => [n, sig4(mv[n])])), vol, w, dist: (c[i] / ma - 1) * 100, spark: c.slice(-120).map(sig4), maSpark: c.map((_, j) => j >= TREND.ma - 1 ? c.slice(j - TREND.ma + 1, j + 1).reduce((s, x) => s + x, 0) / TREND.ma : null).slice(-120).map(v => v && sig4(v)) };
   }
   const wsum = TREND.assets.reduce((s, a) => s + out[a].w, 0);
-  return { assets: out, cash: 1 - wsum, rule: { ma: TREND.ma, tv: TREND.tv } };
+  return { assets: out, cash: 1 - wsum, rule: { ma: TREND.ma, mas: TREND.mas, tv: TREND.tv } };
 }
 async function loadJson(url) {
   for (let a = 0; a < 3; a++) {
@@ -392,7 +392,7 @@ async function telegram(out, T, TR, RO) {
   const L = [`<b>Radar · ${new Date(out.day).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</b>`];
   const tg = out.trend; if (tg) {
     const monday = TR?.rebal; L.push('', monday ? '<b>Tendance BTC + ETH · ajustement du lundi</b>' : '<b>Tendance BTC + ETH</b> (ajustement lundi)');
-    for (const a of ['BTC', 'ETH']) { const x = tg.assets[a]; L.push(`• ${a} : ${x.in ? 'DEDANS' : 'DEHORS'} (${pc(x.dist)} vs moyenne 100 j) · cible ${Math.round(x.w * 100)} % du capital tendance${Math.abs(x.dist) < 3 ? ' · proche de la bascule' : ''}`);
+    for (const a of ['BTC', 'ETH']) { const x = tg.assets[a]; L.push(`• ${a} : ${x.up === x.nMa ? 'DEDANS' : x.up ? `PARTIEL ${x.up}/${x.nMa}` : 'DEHORS'} (au-dessus de ${x.up ?? (x.in ? 1 : 0)} moyenne${x.up > 1 ? 's' : ''} sur ${x.nMa ?? 1}) · cible ${Math.round(x.w * 100)} % du capital tendance${x.near ? ' · proche d’un changement' : ''}`);
       const held = (TR?.alloc?.[a] || 0) > 0; if (TR && !monday && held !== x.in) L.push(`  ⚠ ${a} ${x.in ? 'repasse au-dessus' : 'passe sous'} sa moyenne depuis lundi : ${x.in ? 'achat' : 'vente'} lundi seulement si c’est encore vrai dimanche soir.`); }
     L.push(`• Stablecoin : ${Math.round(tg.cash * 100)} %`);
     if (TR) { const c = TR.curve.at(-1); L.push(`Témoin tendance depuis le ${new Date(TR.start).toLocaleDateString('fr-FR')} : ${pc((c[1] / TR.cap0 - 1) * 100)} (BTC ${pc((c[2] / TR.cap0 - 1) * 100)})`); TR.events.forEach(e => L.push('• ' + e)); }
@@ -448,7 +448,7 @@ async function main() {
     await sleep(80);
   }
 
-  const btcK = await get(`/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${CFG.btcMA + 40}`);
+  const btcK = await get(`/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${Math.max(CFG.btcMA + 40, 240)}`);
   const bk = btcK.filter(x => +x[6] < Date.now());
   const bc = bk.map(x => +x[4]);
   const bma = sma(bc, CFG.btcMA);
@@ -483,7 +483,7 @@ async function main() {
   try { writeFileSync('site/icon-192.png', pngIcon(192)); writeFileSync('site/icon-512.png', pngIcon(512)); } catch (e) { errors.push('Icônes : ' + e.message); }
   let tg = 'non envoyée', TR = null, trFresh = false;
   try {
-    const ethK = (await get(`/api/v3/klines?symbol=ETHUSDT&interval=1d&limit=${CFG.btcMA + 40}`)).filter(x => +x[6] < Date.now());
+    const ethK = (await get(`/api/v3/klines?symbol=ETHUSDT&interval=1d&limit=${Math.max(CFG.btcMA + 40, 240)}`)).filter(x => +x[6] < Date.now());
     out.trend = trendSignal({ BTC: bk, ETH: ethK });
     const r = await runTrend(out); TR = r.st; trFresh = r.fresh;
     writeFileSync('site/data/trend.json', JSON.stringify(TR));
