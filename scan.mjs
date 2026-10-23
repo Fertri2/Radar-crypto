@@ -71,11 +71,11 @@ async function okxList() {
 // ---------- Actions halal : momentum mensuel (top 10 du SPUS sur 12 mois, hors dernier mois) ----------
 const SPUS_FALLBACK = 'NVDA AAPL MSFT GOOGL AVGO TSLA MU LLY AMD XOM JNJ ABBV CSCO PG MRK LRCX AMAT HD PANW TMO TXN LIN CRWD IBM ORCL KLAC MRVL CRM GILD ADI ANET PEP QCOM ABT COP UNP TJX ISRG NOW ACN DHR STX UBER VRTX NEM BKNG MCK MDT LOW FTNT GLW SYK FCX TT ADBE CSX EMR JCI CDNS PWR SNPS MMM WM EOG MDLZ ROST CL VRT SHW SLB ORLY CTAS UPS REGN ITW NSC ECL BSX TGT CMI APD MNST URI CAH TEL NUE FAST NXPI MPWR BDX TER A ADSK EW GWW AZO ROK WAB RSG GRMN CARR IDXX FIX OXY EBAY NKE WDAY NTAP MCHP ROP DHI FANG WAT ADM STLD ODFL VMC EXPE BIIB KMB RMD CTSH DXCM ON JBL MTD WSM HAL EXPD MLM DOV OTIS XYL CHD FFIV LH IR HSY CPRT PHM HUBB ULTA PTC VRSN TPR PPG WST CDW STE EFX DD INCY NDSN GPC PKG FSLR TSCO CF JBHT CHRW IEX GDDY MAS IT RVTY ZBRA AVY TRMB BBY RL FICO GNRC COO ALB TECH LII TYL ALLE DECK CSGP MKC SWKS LULU AOS PNR PODD ROL ALGN';
 const YH = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
-async function yahoo(sym) {
+async function yahoo(sym, range = '2y') {
   const y = /\.(AS|PA|DE|CO|MI|SW|L)$/.test(sym) ? sym : sym.replace(/\./g, '-');
   for (const h of YH) {
     try {
-      const r = await fetch(`${h}/v8/finance/chart/${y}?range=2y&interval=1d`, { headers: { 'user-agent': 'Mozilla/5.0', accept: 'application/json' } });
+      const r = await fetch(`${h}/v8/finance/chart/${y}?range=${range}&interval=1d`, { headers: { 'user-agent': 'Mozilla/5.0', accept: 'application/json' } });
       if (!r.ok) continue;
       const j = await r.json(); const res = j.chart?.result?.[0]; if (!res) continue;
       const t = res.timestamp, a = res.indicators.adjclose?.[0]?.adjclose || res.indicators.quote[0].close;
@@ -120,6 +120,32 @@ function swingSetup(A, mkOn) {
   if (A.up && A.dip) return { set: 'pb', now: false, entry: Math.max(A.p, A.hLast), stop: Math.min(A.low10, A.p - 1.5 * A.atr) - 0.5 * A.atr, tgt: null, dist: Math.max(0, (A.hLast / A.p - 1) * 100) };
   if (A.trend) { const dist = (A.hiNext / A.p - 1) * 100; const e = Math.max(A.p, A.hiNext); return { set: 'bo', now: false, entry: e, stop: e - 2 * A.atr, tgt: e + 6 * A.atr, dist }; }
   return null;
+}
+
+// ETF halal : tendance 200 jours, décision en fin de semaine, test sur tout l'historique Yahoo (dividendes inclus, liquidités à 0 %)
+const ETF = [['SPUS', 'SP Funds S&P 500 Sharia', 'US'], ['HLAL', 'Wahed FTSE USA Shariah', 'US'], ['ISWD.L', 'iShares MSCI World Islamic', 'UCITS'], ['ISUS.L', 'iShares MSCI USA Islamic', 'UCITS'], ['ISDE.L', 'iShares MSCI EM Islamic', 'UCITS']];
+const wk = d => Math.floor((Date.parse(d) / 864e5 + 3) / 7);
+function etfTest(d, c, m, cost) {
+  const i0 = 199, n = c.length - 1; let v = 1, b = 1, pv = 1, pb = 1, dv = 0, db = 0, pos = c[i0] > m[i0] ? 1 : 0, sw = 0, inn = 0;
+  for (let j = i0 + 1; j <= n; j++) {
+    const r = c[j] / c[j - 1] - 1; if (pos) { v *= 1 + r; inn++; } b *= 1 + r;
+    pv = Math.max(pv, v); pb = Math.max(pb, b); dv = Math.min(dv, v / pv - 1); db = Math.min(db, b / pb - 1);
+    if (j === n || wk(d[j + 1]) !== wk(d[j])) { const np = c[j] > m[j] ? 1 : 0; if (np !== pos) { v *= 1 - cost; pos = np; sw++; } }
+  }
+  const yrs = (Date.parse(d[n]) - Date.parse(d[i0])) / (365.25 * 864e5); const cg = x => +((Math.pow(x, 1 / yrs) - 1) * 100).toFixed(1);
+  return { from: d[i0], yrs: +yrs.toFixed(1), cagr: cg(v), dd: +(dv * 100).toFixed(1), bh: cg(b), bhDd: +(db * 100).toFixed(1), swY: +(sw / yrs).toFixed(1), expo: Math.round(inn / (n - i0) * 100) };
+}
+async function etfTrend() {
+  const list = [];
+  for (const [s, n, z] of ETF) {
+    let k = null; try { k = await yahoo(s, 'max'); } catch (e) { } await sleep(80);
+    if (!k || k.length < 320) continue;
+    const d = k.map(x => x[0]), c = k.map(x => x[1]), m = sma(c, 200), i = c.length - 1;
+    const lastW = d.slice(0, i).reverse().findIndex(x => wk(x) !== wk(d[i])); const jw = lastW < 0 ? i : i - 1 - lastW;
+    list.push({ s, n, z, day: d[i], p: sig4(c[i]), ma: sig4(m[i]), in: c[i] > m[i], dist: +((c[i] / m[i] - 1) * 100).toFixed(2), held: c[jw] > m[jw], r1y: c.length > 253 ? +((c[i] / c[i - 252] - 1) * 100).toFixed(1) : null,
+      spark: c.slice(-160).map(sig4), maSpark: m.slice(-160).map(v => v && sig4(v)), bt: etfTest(d, c, m, 0.002) });
+  }
+  return list.length ? { list, rule: { ma: 200, cost: 0.2 } } : null;
 }
 
 async function stocks() {
@@ -326,7 +352,8 @@ async function telegram(out, T, TR) {
   const L = [`<b>Radar · ${new Date(out.day).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</b>`];
   const tg = out.trend; if (tg) {
     const monday = TR?.rebal; L.push('', monday ? '<b>Tendance BTC + ETH · ajustement du lundi</b>' : '<b>Tendance BTC + ETH</b> (ajustement lundi)');
-    for (const a of ['BTC', 'ETH']) { const x = tg.assets[a]; L.push(`• ${a} : ${x.in ? 'DEDANS' : 'DEHORS'} (${pc(x.dist)} vs moyenne 100 j) · cible ${Math.round(x.w * 100)} % du capital tendance`); }
+    for (const a of ['BTC', 'ETH']) { const x = tg.assets[a]; L.push(`• ${a} : ${x.in ? 'DEDANS' : 'DEHORS'} (${pc(x.dist)} vs moyenne 100 j) · cible ${Math.round(x.w * 100)} % du capital tendance${Math.abs(x.dist) < 3 ? ' · proche de la bascule' : ''}`);
+      const held = (TR?.alloc?.[a] || 0) > 0; if (TR && !monday && held !== x.in) L.push(`  ⚠ ${a} ${x.in ? 'repasse au-dessus' : 'passe sous'} sa moyenne depuis lundi : ${x.in ? 'achat' : 'vente'} lundi seulement si c’est encore vrai dimanche soir.`); }
     L.push(`• Stablecoin : ${Math.round(tg.cash * 100)} %`);
     if (TR) { const c = TR.curve.at(-1); L.push(`Témoin tendance depuis le ${new Date(TR.start).toLocaleDateString('fr-FR')} : ${pc((c[1] / TR.cap0 - 1) * 100)} (BTC ${pc((c[2] / TR.cap0 - 1) * 100)})`); TR.events.forEach(e => L.push('• ' + e)); }
   }
@@ -336,6 +363,7 @@ async function telegram(out, T, TR) {
   else if (out.tradeable) L.push('Aucune cassure cette nuit.');
   if (out.near.length) L.push('Proches : ' + out.near.slice(0, 4).map(n => `${n.s} à ${pc(n.dist)}`).join(' · '));
   const sw = out.stocks?.swing; if (sw?.sig?.length) L.push('', '<b>Swing actions</b>', sw.sig.slice(0, 4).map(x => `${x.s} (${x.set === 'bo' ? 'cassure' : 'repli + rebond'})`).join(' · '));
+  if (out.etf?.list?.length) L.push('', '<b>ETF halal · tendance 200 j</b> (décision vendredi soir)', out.etf.list.map(e => `${e.s.replace('.L', '')} ${e.in ? 'DEDANS' : 'DEHORS'} ${pc(e.dist)}`).join(' · '));
   if (T) { const c = T.curve.at(-1); const perf = (c[1] / T.cap0 - 1) * 100, bp = (c[2] / T.cap0 - 1) * 100;
     L.push(`Témoin cassure depuis le ${new Date(T.start).toLocaleDateString('fr-FR')} : ${pc(perf)} (BTC ${pc(bp)})`);
     T.events.forEach(e => L.push('• ' + e)); }
@@ -388,13 +416,14 @@ async function main() {
     .map(c => ({ s: c.s, p: c.p, trigger: c.hiNext, dist: c.dist, r30: c.r30, okx: c.okx }));
 
   let stk = null; try { stk = await stocks(); } catch (e) { errors.push('Actions : ' + e.message); }
+  let etf = null; try { etf = await etfTrend(); } catch (e) { errors.push('ETF : ' + e.message); }
 
   const out = {
     at: new Date().toISOString(), day: coins.find(c => c.s === 'BTC')?.day, cfg: CFG, btc, fx, okxChecked: !!okx,
     tradeable: btc.on, signals: sig, near, universe: tradable.length, marketSize: coins.length, breadth,
     market: coins.map(c => ({ s: c.s, p: c.p, vol: c.vol, r1: c.r1, r7: c.r7, r30: c.r30, up: c.ma50 != null ? c.p > c.ma50 : null, brk: c.brk, dist: c.dist, tag: c.tag, elig: c.elig, okx: c.okx, spark: c.spark })),
     levels: Object.fromEntries(tradable.map(c => [c.s, { p: c.p, lo10: c.loNext, hi20: c.hiNext, atr: c.atr, r30: c.r30, hist: c.hist }])),
-    stocks: stk,
+    stocks: stk, etf,
     errors: errors.slice(0, 20)
   };
   mkdirSync('site/data', { recursive: true });
