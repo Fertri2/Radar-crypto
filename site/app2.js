@@ -223,7 +223,7 @@
       ['Le feu vert', 'BTC doit aussi être au-dessus de sa moyenne 100 jours. Sinon : 100 % stablecoin.'],
       ['Combien', 'Moins si elle est très agitée (cible 40 % de volatilité par an). Le reste en stablecoin.'],
       ['Changer', 'Si la cible change un lundi, on vend l’ancienne et on achète la nouvelle. Sinon on ne touche à rien.']],
-      note: 'Méthode créée et testée de 2018 à 2026 : +37 %/an, pire chute −38 %. Les réglages voisins donnent +18 à +28 %/an : une part du résultat est de la chance. Suivie en papier pour la valider en réel. Pas un conseil en investissement.' },
+      note: 'Testée de 2018 à 2026 : +37 %/an avec BNB, mais +24 %/an et pire chute −41 % sans BNB, qui est exclu pour raison halal. Sans BNB, elle fait moins bien que la tendance BTC + ETH. Suivie en papier pour la valider en réel. Pas un conseil en investissement.' },
     crypto: { t: 'Cassure altcoins (expérimental)', tab: 'home', tabL: 'Aujourd’hui' },
     ana: { t: 'Analyser un actif', tab: 'mkt', tabL: 'Analyser', steps: [
       ['Tape le symbole', 'Dans l’onglet Analyser : un symbole crypto Binance (SOL, NEAR…) ou une action suivie (NVDA, ASML…). Les suggestions s’affichent pendant la frappe.'],
@@ -520,7 +520,7 @@
       <p class="note" style="margin-top:6px">${isMon ? 'Passe ces ordres ce matin en spot.' : 'Lecture du jour : la vraie décision se prend sur la clôture de dimanche soir. Si la cible change d’ici là, l’alerte Telegram de lundi te le dira.'} Si le prix a déjà dépassé le maximum, n’achète pas cette semaine. Pas de stop en cours de semaine : on revoit tout le lundi suivant.</p></div>`;
     rotCard.innerHTML = head + meteo + `<div style="background:var(--surf2);border-radius:14px;padding:10px 12px;font-size:13.5px">${X.pick ? `Cette semaine : <b>${esc(X.pick)}</b> à ${Math.round(X.w * 100)} % du capital rotation, le reste en stablecoin.` : `Cette semaine : <b>100 % stablecoin</b>${X.btcOn ? ' (aucune des 5 n’est en hausse au-dessus de sa moyenne).' : ' (BTC sous sa moyenne 100 jours).'}`}</div>
       <div class="list" style="margin-top:6px">${rows}</div>
-      <p class="note" style="margin-top:8px">On ne détient que la plus forte des 5 cryptos les plus échangées, si elle est au-dessus de sa moyenne 100 jours. BNB exclu (doute halal). Test 2018–2026 : +37 %/an, pire chute −38 %, mais les réglages voisins font +18 à +28 %. Suivi en papier seulement, pas encore validé.</p>
+      <p class="note" style="margin-top:8px">On ne détient que la plus forte des 5 cryptos les plus échangées, si elle est au-dessus de sa moyenne 100 jours. BNB exclu (doute halal). Test 2018–2026 sans BNB : +24 %/an, pire chute −41 %, soit moins bien que la tendance BTC + ETH. Pas de stop ni d’objectif : les tests montrent qu’ils dégradent le résultat. Suivi en papier seulement, pas encore validé.</p>
       ${ordH}<div class="btns" style="margin-top:6px"><button class="ghost" id="rotHow">Comment ça marche ?</button></div>${tw}`;
     $('#rotHow').onclick = () => { howShow('rot'); go('how'); };
     $('#rotCapI').onchange = e => { LS.set('rotCap', Math.max(0, +e.target.value || 0)); rotView(); };
