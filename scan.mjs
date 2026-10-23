@@ -141,6 +141,7 @@ async function etfTrend() {
   for (const [s, n, z] of ETF) {
     let k = null; for (const y of [s, ...(ALT[s] || [])]) { for (let t = 0; t < 2 && !k; t++) { try { k = await yahoo(y, 'max'); } catch (e) { } if (!k) await sleep(1500); } if (k) break; }
     await sleep(150); if (!k || k.length < 320) { ETF_ERR.push(`${s} : ${k ? k.length + ' séances' : 'pas de données'}`); continue; }
+    k = k.filter((x, j) => { if (j === 0 || j === k.length - 1) return true; const r1 = x[1] / k[j - 1][1], r2 = k[j + 1][1] / k[j - 1][1]; return !((r1 > 1.15 || r1 < 0.87) && r2 > 0.95 && r2 < 1.05); }); // cotations aberrantes isolées
     const d = k.map(x => x[0]), c = k.map(x => x[1]), m = sma(c, 200), i = c.length - 1;
     const lastW = d.slice(0, i).reverse().findIndex(x => wk(x) !== wk(d[i])); const jw = lastW < 0 ? i : i - 1 - lastW;
     list.push({ s, n, z, day: d[i], p: sig4(c[i]), ma: sig4(m[i]), in: c[i] > m[i], dist: +((c[i] / m[i] - 1) * 100).toFixed(2), held: c[jw] > m[jw], r1y: c.length > 253 ? +((c[i] / c[i - 252] - 1) * 100).toFixed(1) : null,
