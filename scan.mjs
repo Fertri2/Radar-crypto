@@ -348,7 +348,44 @@ async function runTrend(out, K) {
   return { st, fresh: true };
 }
 
-async function telegram(out, T, TR) {
+// Rotation des 5 géants (en papier) : la plus forte sur 12 semaines parmi les 5 cryptos les plus échangées
+const ROT = { n: 5, look: 84, ma: 100, tv: 0.40, url: 'https://fertri2.github.io/Radar-crypto/data/rot.json', cap0: 10000, fee: 0.001, slip: 0.001, excl: new Set(['BNB']) };
+function rotSignal(KL, btcOn) {
+  const U = [];
+  for (const [s, k] of KL) {
+    if (MEME.has(s) || ETHIC.has(s) || STABLE.has(s) || ROT.excl.has(s) || k.length < ROT.ma + 1 || k.length < ROT.look + 1) continue;
+    const c = k.map(x => +x[4]), i = c.length - 1; const qv = k.slice(-30).reduce((a, x) => a + +x[7], 0) / 30;
+    const ma = c.slice(-ROT.ma).reduce((a, b) => a + b, 0) / ROT.ma; const mom = c[i] / c[i - ROT.look] - 1;
+    const r = []; for (let j = i - 29; j <= i; j++) r.push(Math.log(c[j] / c[j - 1])); const m = r.reduce((a, b) => a + b, 0) / 30; const vol = Math.sqrt(r.reduce((a, b) => a + (b - m) ** 2, 0) / 29) * Math.sqrt(365);
+    U.push({ s, p: c[i], qv, mom, above: c[i] > ma, dist: (c[i] / ma - 1) * 100, vol });
+  }
+  const top = U.sort((a, b) => b.qv - a.qv).slice(0, ROT.n);
+  const ok = top.filter(x => x.above && x.mom > 0).sort((a, b) => b.mom - a.mom); const pick = btcOn && ok.length ? ok[0] : null;
+  return { top: top.map(x => ({ s: x.s, p: sig4(x.p), mom: +(x.mom * 100).toFixed(1), above: x.above, dist: +x.dist.toFixed(1), vol: +x.vol.toFixed(2) })), pick: pick ? pick.s : null, w: pick ? +Math.min(1, ROT.tv / pick.vol).toFixed(3) : 0, btcOn };
+}
+async function runRot(out, KL) {
+  const day = out.day; let st = await loadJson(ROT.url); const sig = out.rot; const px = s => { const k = KL.get(s); return k && k.length ? +k.at(-1)[4] : null; };
+  if (!st) st = { start: day, cap0: ROT.cap0, cash: ROT.cap0, pos: null, btc0: px('BTC'), curve: [], lastDay: null, lastRebal: null, events: [], trades: [] };
+  if (st.lastDay && st.lastDay >= day) return { st, fresh: false };
+  const ev = []; const sunday = new Date(day + 'T00:00:00Z').getUTCDay() === 0;
+  if (st.pos) { const p = px(st.pos.s); if (p) st.pos.last = p; }
+  const eqv = () => st.cash + (st.pos ? st.pos.q * st.pos.last : 0);
+  const sellAll = () => { const g = st.pos.q * st.pos.last * (1 - ROT.slip) * (1 - ROT.fee); st.cash += g; ev.push(`Vente ${st.pos.s} : ${Math.round(g).toLocaleString('fr-FR')} $`); st.trades.unshift({ d: day, a: st.pos.s, side: 'vente', usd: Math.round(g) }); st.pos = null; };
+  if (sunday || !st.lastRebal) {
+    if (st.pos && st.pos.s !== sig.pick) sellAll();
+    if (sig.pick) { const p = px(sig.pick); const E = eqv(); const cur = st.pos ? st.pos.q * p : 0; const diff = E * sig.w - cur;
+      if (!st.pos || Math.abs(diff) >= E * 0.02) {
+        if (diff > 0) { const usd = Math.min(diff, st.cash / (1 + ROT.fee)); const q = usd / (p * (1 + ROT.slip)); st.cash -= usd * (1 + ROT.fee); st.pos = st.pos ? { s: st.pos.s, q: st.pos.q + q, last: p } : { s: sig.pick, q, last: p }; ev.push(`Achat ${sig.pick} : ${Math.round(usd).toLocaleString('fr-FR')} $`); st.trades.unshift({ d: day, a: sig.pick, side: 'achat', usd: Math.round(usd) }); }
+        else if (st.pos) { const q = Math.min(st.pos.q, -diff / p); st.pos.q -= q; const g = q * p * (1 - ROT.slip) * (1 - ROT.fee); st.cash += g; ev.push(`Allègement ${sig.pick} : ${Math.round(g).toLocaleString('fr-FR')} $`); st.trades.unshift({ d: day, a: sig.pick, side: 'vente', usd: Math.round(g) }); }
+      } }
+    st.lastRebal = day;
+  }
+  const E = eqv(); st.curve.push([day, +E.toFixed(2), +(st.cap0 * px('BTC') / st.btc0).toFixed(2)]);
+  st.trades = st.trades.slice(0, 100); st.lastDay = day; st.events = ev; st.rebal = sunday; st.updated = new Date().toISOString();
+  return { st, fresh: true };
+}
+
+async function telegram(out, T, TR, RO) {
   const tok = process.env.TG_TOKEN, chat = process.env.TG_CHAT; if (!tok || !chat) return 'non configurée';
   const f = v => (+v).toLocaleString('fr-FR', { maximumSignificantDigits: 5 }); const pc = v => (v >= 0 ? '+' : '−') + Math.abs(v).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
   const L = [`<b>Radar · ${new Date(out.day).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</b>`];
@@ -358,6 +395,10 @@ async function telegram(out, T, TR) {
       const held = (TR?.alloc?.[a] || 0) > 0; if (TR && !monday && held !== x.in) L.push(`  ⚠ ${a} ${x.in ? 'repasse au-dessus' : 'passe sous'} sa moyenne depuis lundi : ${x.in ? 'achat' : 'vente'} lundi seulement si c’est encore vrai dimanche soir.`); }
     L.push(`• Stablecoin : ${Math.round(tg.cash * 100)} %`);
     if (TR) { const c = TR.curve.at(-1); L.push(`Témoin tendance depuis le ${new Date(TR.start).toLocaleDateString('fr-FR')} : ${pc((c[1] / TR.cap0 - 1) * 100)} (BTC ${pc((c[2] / TR.cap0 - 1) * 100)})`); TR.events.forEach(e => L.push('• ' + e)); }
+  }
+  const ro = out.rot; if (ro) {
+    L.push('', '<b>Rotation des 5 géants (en papier)</b>', ro.pick ? `Cible : ${ro.pick} à ${Math.round(ro.w * 100)} %, le reste en stablecoin` : 'Cible : 100 % stablecoin', 'Les 5 : ' + ro.top.map(x => `${x.s} ${pc(x.mom)}`).join(' · '));
+    if (RO) { const c = RO.curve.at(-1); L.push(`Témoin rotation depuis le ${new Date(RO.start).toLocaleDateString('fr-FR')} : ${pc((c[1] / RO.cap0 - 1) * 100)} (BTC ${pc((c[2] / RO.cap0 - 1) * 100)})`); RO.events.forEach(e => L.push('• ' + e)); }
   }
   L.push('', '<b>Cassure altcoins (expérimental, en papier)</b>');
   L.push(out.tradeable ? 'Marché ouvert (BTC au-dessus de sa moyenne 100 jours)' : `Marché fermé (BTC à ${pc(out.btc.dist)} de sa moyenne 100 jours), aucun achat`);
@@ -441,10 +482,13 @@ async function main() {
     if (/illisible/.test(e.message)) { console.error(e.message); process.exit(1); }
     errors.push('Tendance : ' + e.message); out.errors = errors.slice(0, 20);
   }
+  let RO = null, roFresh = false;
+  try { out.rot = rotSignal(KL, btc.on); const r = await runRot(out, KL); RO = r.st; roFresh = r.fresh; writeFileSync('site/data/rot.json', JSON.stringify(RO)); }
+  catch (e) { if (/illisible/.test(e.message)) { console.error(e.message); process.exit(1); } errors.push('Rotation : ' + e.message); out.errors = errors.slice(0, 20); }
   try {
     const { st: T, fresh } = await runTrack(out, KL);
     writeFileSync('site/data/track.json', JSON.stringify(T));
-    if (fresh || trFresh || process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') { try { tg = await telegram(out, T, TR); } catch (e) { tg = 'erreur : ' + e.message; } }
+    if (fresh || trFresh || roFresh || process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') { try { tg = await telegram(out, T, TR, RO); } catch (e) { tg = 'erreur : ' + e.message; } }
   } catch (e) {
     if (/illisible/.test(e.message)) { console.error(e.message); process.exit(1); }
     errors.push('Portefeuille témoin : ' + e.message); out.errors = errors.slice(0, 20);
