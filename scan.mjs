@@ -99,6 +99,8 @@ async function spusHoldings() {
 }
 
 // ---------- Swing actions : cassure 20 séances ou repli confirmé (méthode « Swing actions ») ----------
+// actions ajoutées à la demande (hors SPUS : conformité non vérifiée)
+const EXTRA = [['ONON', 'On Holding (chaussures, vêtements)']];
 const EU_SWING = [['ASML.AS', 'ASML'], ['SU.PA', 'Schneider Electric'], ['AI.PA', 'Air Liquide'], ['SAP.DE', 'SAP'], ['NOVO-B.CO', 'Novo Nordisk'], ['OR.PA', "L'Oréal"], ['RMS.PA', 'Hermès'], ['DSY.PA', 'Dassault Systèmes'], ['STMPA.PA', 'STMicroelectronics'], ['TTE.PA', 'TotalEnergies'], ['IFX.DE', 'Infineon']];
 function wilder(k) {
   const c = k.map(x => x[1]), h = k.map(x => x[3]), l = k.map(x => x[4]), v = k.map(x => x[5]); const n = c.length, i = n - 1;
@@ -166,10 +168,11 @@ async function stocks() {
   const spyM50 = sma(spyC, 50); const usOn = spyC.at(-1) > spyM.at(-1) && spyM50.at(-1) > spyM.at(-1);
   let euOn = null; try { const sx = await yahoo('^STOXX'); if (sx && sx.length > 210) { const xc = sx.map(x => x[1]); euOn = xc.at(-1) > sma(xc, 200).at(-1) && sma(xc, 50).at(-1) > sma(xc, 200).at(-1); } } catch (e) { /* Europe inconnue */ }
   const EUK = {}; for (const [s, name] of EU_SWING) { const k = await yahoo(s); await sleep(60); if (k && k.length > 260) EUK[s] = { name, k }; }
+  const EXK = {}; for (const [s, name] of EXTRA) { if (S[s] || EUK[s]) continue; const k = await yahoo(s); await sleep(60); if (k && k.length > 260) EXK[s] = { name, k }; }
   const all = {}; const swSig = [], swNear = [];
-  for (const [s, v] of [...Object.entries(S), ...Object.entries(EUK)]) {
-    const eu = !S[s]; const A = wilder(v.k); const mk = eu ? euOn : usOn; const st = swingSetup(A, mk !== false);
-    const o = { n: v.name, eu, halal: eu ? null : true, p: A.p, d1: A.d1, s50: A.s50, s200: A.s200, rsi: A.rsi, atr: A.atr, trend: A.trend, up: A.up, hi52: A.hi52, lo52: A.lo52, liq: A.turnover, spark: A.spark, sw: st, day: A.day };
+  for (const [s, v] of [...Object.entries(S), ...Object.entries(EUK), ...Object.entries(EXK)]) {
+    const eu = !!EUK[s], ex = !!EXK[s]; const A = wilder(v.k); const mk = eu ? euOn : usOn; const st = swingSetup(A, mk !== false);
+    const o = { n: v.name, eu, extra: ex, halal: S[s] ? true : null, p: A.p, d1: A.d1, s50: A.s50, s200: A.s200, rsi: A.rsi, atr: A.atr, trend: A.trend, up: A.up, hi52: A.hi52, lo52: A.lo52, liq: A.turnover, spark: A.spark, sw: st, day: A.day };
     all[s] = o;
     if (st?.now && A.turnover > 1e7) swSig.push({ s, set: st.set, entry: st.entry, stop: st.stop, tgt: st.tgt });
     else if (st && !st.now && st.dist != null && st.dist <= 3 && A.turnover > 1e7) swNear.push({ s, set: st.set, dist: st.dist, entry: st.entry });
