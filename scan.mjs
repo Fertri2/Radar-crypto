@@ -296,7 +296,7 @@ async function runTrack(out, KL) {
   }
   const eq = equity();
   st.curve.push([day, +eq.toFixed(2), +(st.cap0 * out.btc.p / st.btc0).toFixed(2)]);
-  st.closed = st.closed.slice(0, 200); st.lastDay = day; st.events = ev; st.updated = new Date().toISOString();
+  st.closed = st.closed.slice(0, 5000); st.lastDay = day; st.events = ev; st.updated = new Date().toISOString();
   st.pos.forEach(p => { p.value = +(p.q * (lastClose(p.s) ?? p.last)).toFixed(2); });
   return { st, fresh: true };
 }
