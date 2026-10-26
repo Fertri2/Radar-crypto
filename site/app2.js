@@ -160,7 +160,7 @@
     const isC = (S.data?.market || []).some(m => m.s === up); let sk = all[up] ? up : isC ? null : Object.keys(all).find(k => k.split('.')[0] === up) || (q.length > 3 ? Object.keys(all).find(k => (all[k].n || '').toLowerCase().split(/[^a-z0-9à-ÿ]+/).some(w => w.startsWith(q.toLowerCase()))) : null);
     if (sk) { anaLast = { kind: 'stock', s: sk }; out.innerHTML = stockHtml(sk, all[sk]); return; }
     const sym = up.replace(/USDT$/, '').replace(/[^A-Z0-9]/g, ''); out.innerHTML = '<p class="note">Lecture des cours journaliers…</p>';
-    const k = await bnKlines(sym, 220); if (!k || k.length < 25) { out.innerHTML = `<div class="empty">« ${esc(q)} » introuvable. Cryptos : symbole Binance (ex. SOL). Actions : uniquement les ${Object.keys(all).length} actions suivies chaque nuit (SPUS + grandes valeurs européennes).</div>`; return; }
+    const k = await bnKlines(sym, 220); if (!k || k.length < 25) { out.innerHTML = `<div class="empty">« ${esc(q)} » introuvable. Cryptos : symbole Binance (ex. SOL). Actions : uniquement les ${Object.keys(all).length} actions suivies chaque nuit (SPUS, grandes valeurs européennes et actions ajoutées à ta demande). Pour une autre action, demande à Claude de l’ajouter au scan.</div>`; return; }
     anaLast = { kind: 'crypto', s: sym, A: ind(k) }; out.innerHTML = cryptoHtml(sym, anaLast.A); bindAna();
   }
   function lvl(label, v, cls, sub) { return `<div><span>${label}</span><b class="num ${cls || ''}">${v}</b>${sub ? `<span>${sub}</span>` : ''}</div>`; }
