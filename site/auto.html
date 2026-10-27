@@ -152,6 +152,7 @@ h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
         <button class="chip" data-f="hot" aria-pressed="false">Au-dessus du seuil</button>
         <button class="chip" data-f="suv" aria-pressed="false">SUV</button>
         <button class="chip" data-f="fr" aria-pressed="false">France</button>
+        <button class="chip" data-f="lbc" aria-pressed="false">Leboncoin</button>
         <button class="chip" data-f="risk" aria-pressed="false">Suspectes</button>
         <button class="chip" data-f="hidden" aria-pressed="false">Écartées</button>
       </div>
@@ -230,13 +231,14 @@ function render(){
   if(filter==='suv')L=L.filter(r=>r.d.carrosserie==='SUV');
   if(filter==='fr')L=L.filter(r=>/\(FR\)/.test(r.d.ville||''));
   if(filter==='risk')L=L.filter(r=>r.c.risk>=25);
+  if(filter==='lbc')L=L.filter(r=>r.d.site==='lbc');
   L.sort((a,b)=>b.c.dec-a.c.dec);
   const box=$('#deals');
   if(!L.length){box.innerHTML=`<div class="empty"><b>${rows.length?'Rien dans ce filtre':'Le premier scan arrive'}</b>${rows.length?'Change de filtre ou baisse le seuil.':'Le scan tourne toutes les heures et dépose ici les annonces nettement sous leur cote.'}</div>`;return;}
   box.innerHTML=L.slice(0,150).map(({d,c})=>{const [cls,lab]=pill(c.risk);const ok=c.dec>=cfg.seuil;const pct=Math.max(0,Math.min(60,c.dec))/60*100;const col=c.risk>=50?'var(--down)':ok?'var(--up)':'var(--warn)';
     return `<article class="deal ${c.risk>=50?'risky':isHot({d,c})?'hot':''}">
     ${d.photo?`<img src="${esc(d.photo)}" alt="" loading="lazy">`:''}
-    <div class="row"><span class="meta">${SRC[d.source]||''} · ${esc(d.ville)}</span><span class="badge ${cls}">${lab}</span></div>
+    <div class="row"><span class="meta">${d.site==='lbc'?'Leboncoin · ':'AutoScout24 · '}${SRC[d.source]||''} · ${esc(d.ville)}</span><span class="badge ${cls}">${lab}</span></div>
     <h3>${esc(d.titre)}</h3>
     <div class="meta">${d.annee||'?'} · ${(+d.km).toLocaleString('fr-FR')} km${d.carburant?' · '+esc(d.carburant):''}${inCrit({d})?'':' · <span style="color:var(--warn)">hors critères</span>'}</div>
     <div class="row"><span>Sous la cote, frais compris</span><b style="color:${col};font-size:16px">${c.dec>=0?'−':'+'}${Math.abs(c.dec).toFixed(0)} %</b></div>
@@ -244,7 +246,7 @@ function render(){
     <div class="figs"><div><span>Prix + frais</span><b>${eur(c.cout)}</b></div><div><span>Cote</span><b>${eur(d.cote)}</b></div><div><span>Marge ${cfg.mois} m</span><b style="color:${c.marge>=0?'var(--up)':'var(--down)'}">${c.marge>=0?'+':''}${eur(c.marge)}</b></div></div>
     ${d.signaux&&d.signaux.length?`<div class="signals">${d.signaux.map(s=>`<span>${esc((SIGNALS.find(x=>x[0]===s)||[,s])[1])}</span>`).join('')}</div>`:''}
     ${ficheHTML(d.titre,false)}
-    <div class="meta">Cote : ${d.n||'?'} annonces comparables · détectée le ${new Date(d.detecteLe).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+    <div class="meta">${d.site==='lbc'?'Cote : estimation Leboncoin '+eur(d.coteMin)+' – '+eur(d.coteMax):'Cote : '+(d.n||'?')+' annonces comparables'} · détectée le ${new Date(d.detecteLe).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
     <div class="actions"><a class="btn pri" href="${esc(d.url)}" target="_blank" rel="noopener">Voir l'annonce</a><button class="btn" data-id="${esc(d.id)}">${hidden.has(d.id)?'Remettre':'Écarter'}</button></div>
     </article>`;}).join('');
 }
@@ -275,7 +277,7 @@ function verdict(){
 $('#form').addEventListener('input',verdict);$('#form').addEventListener('submit',e=>e.preventDefault());
 
 function links(){const {budget:b,annee:a,kmmax:k}=cfg;const L=[
- ['Leboncoin',`https://www.leboncoin.fr/recherche?category=2&regdate=${a}-max&mileage=min-${k}&price=min-${b}`,'Particuliers et pros'],
+ ['Leboncoin',`https://www.leboncoin.fr/recherche?category=2&regdate=${a}-max&mileage=min-${k}&price=min-${b}&sort=time&order=desc`,'Scanné depuis ton PC'],
  ['La Centrale',`https://www.lacentrale.fr/listing?yearMin=${a}&mileageMax=${k}&priceMax=${b}`,'Indicateur bonne affaire'],
  ['AutoScout24 (4 pays)',`https://www.autoscout24.fr/lst?body=4&fregfrom=${a}&kmto=${k}&priceto=${b}&cy=F,B,L,D&atype=C&sort=age&desc=1`,'Source du scan'],
  ['mobile.de','https://www.mobile.de/fr/','Plus gros marché européen'],
@@ -286,11 +288,13 @@ function links(){const {budget:b,annee:a,kmmax:k}=cfg;const L=[
  $('#links').innerHTML=L.map(([n,u,s])=>`<a href="${u}" target="_blank" rel="noopener"><b>${n}</b><span>${s}</span></a>`).join('');}
 
 applyCfg();verdict();links();
-fetch('data/auto.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{
-  if(j){data=j;$('#scanInfo').textContent='Scan auto : '+new Date(j.updated).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'})+(j.stats?' · '+j.stats.lues+' annonces lues':'');}
-  else $('#scanInfo').textContent='Premier scan en attente';
+Promise.all(['data/auto.json','data/lbc-all.json'].map(u=>fetch(u+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null))).then(([a,l])=>{
+  data={deals:[...((a&&a.deals)||[]),...((l&&l.deals)||[])],stats:a&&a.stats};
+  const hh=t=>new Date(t).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'});
+  const parts=[];if(a)parts.push('AutoScout24 '+hh(a.updated));if(l)parts.push('Leboncoin '+hh(l.lot||l.updated));
+  $('#scanInfo').textContent=parts.length?'Scans : '+parts.join(' · '):'Premier scan en attente';
   render();
-}).catch(()=>{$('#scanInfo').textContent='Données indisponibles';render();});
+});
 </script>
 </body>
 </html>
