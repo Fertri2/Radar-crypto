@@ -245,7 +245,7 @@ function render(){
     annee:(a,b)=>(b.d.annee||0)-(a.d.annee||0)||a.d.km-b.d.km,
     km:(a,b)=>a.d.km-b.d.km, marge:(a,b)=>b.c.marge-a.c.marge,
     recent:(a,b)=>Date.parse(b.d.detecteLe)-Date.parse(a.d.detecteLe)}[cfg.tri||'decote']||((a,b)=>b.c.dec-a.c.dec);
-  L.sort(cmp);
+  L.sort((a,b)=>((a.c.risk>=50)-(b.c.risk>=50))||cmp(a,b));
   const box=$('#deals');
   if(!L.length){box.innerHTML=`<div class="empty"><b>${rows.length?'Rien dans ce filtre':'Le premier scan arrive'}</b>${rows.length?'Change de filtre ou baisse le seuil.':'Le scan tourne toutes les heures et dépose ici les annonces nettement sous leur cote.'}</div>`;return;}
   box.innerHTML=L.slice(0,150).map(({d,c,fm})=>{const [cls,lab]=pill(c.risk);const ok=c.dec>=cfg.seuil;const pct=Math.max(0,Math.min(60,c.dec))/60*100;const col=c.risk>=50?'var(--down)':ok?'var(--up)':'var(--warn)';
