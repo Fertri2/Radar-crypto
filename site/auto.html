@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#4F46E5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Radar">
+<title>Radar · Auto</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234F46E5'/%3E%3Ccircle cx='32' cy='32' r='18' fill='none' stroke='white' stroke-opacity='.45' stroke-width='3'/%3E%3Ccircle cx='32' cy='32' r='8' fill='none' stroke='white' stroke-opacity='.7' stroke-width='3'/%3E%3Cpath d='M32 32 L47 19' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='44' cy='40' r='4' fill='%2334D399'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light;
+--bg:#F4F5FB;--surf:#FFFFFF;--surf2:#F7F8FC;--ink:#151A2D;--ink2:#4B5370;--mute:#8A91A8;--line:#E7E9F2;
+--acc:#4F46E5;--acc2:#7C72F7;--accbg:#EEEDFD;
+--up:#0E9F6E;--upbg:#E3F7EE;--down:#E5484D;--downbg:#FDECEC;--warn:#D97706;--warnbg:#FEF3E2;--grey:#A3A9BC;--greybg:#EFF1F6;
+--shadow:0 1px 2px rgba(21,26,45,.04),0 6px 20px rgba(21,26,45,.06);
+--font:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#0D1020;--surf:#161A2E;--surf2:#1C2138;--ink:#EEF0F8;--ink2:#B3B9CF;--mute:#7E86A3;--line:#262C46;
+--acc:#8B83FF;--acc2:#A7A0FF;--accbg:#24224A;--up:#34D399;--upbg:#0F2E25;--down:#F87171;--downbg:#3A1C21;--warn:#FBBF24;--warnbg:#3A2C10;--grey:#5C6482;--greybg:#20253D;--shadow:0 1px 2px rgba(0,0,0,.3)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--font);padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+.wrap{max-width:1040px;margin:0 auto;padding:0 16px}
+header{background:linear-gradient(135deg,#4F46E5 0%,#7C3AED 60%,#9333EA 100%);color:#fff;padding:calc(18px + env(safe-area-inset-top)) 0 64px}
+.hrow{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.01em}
+.scan{font-size:12px;opacity:.85;text-align:right}
+.space{display:inline-flex;background:rgba(255,255,255,.14);border-radius:999px;padding:3px;gap:2px;margin-top:14px}
+.space a{color:#fff;text-decoration:none;font-weight:700;font-size:13.5px;padding:6px 14px;border-radius:999px;opacity:.85}
+.space a.on{background:#fff;color:#4F46E5;opacity:1}
+.hello{margin-top:18px;font-size:24px;font-weight:800;letter-spacing:-.02em}
+.hello small{display:block;font-size:14px;font-weight:500;opacity:.85;margin-top:2px}
+main{margin-top:-44px;display:grid;gap:16px}
+.card{background:var(--surf);border-radius:20px;padding:18px;box-shadow:var(--shadow);border:1px solid var(--line);min-width:0}
+.ctitle{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
+.sub{font-size:13px;color:var(--mute)}
+.note{font-size:12.5px;color:var(--mute);margin:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--surf2);border-radius:14px;padding:12px}
+.kpi b{display:block;font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+.kpi span{font-size:12.5px;color:var(--mute)}
+.set{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.set label{display:grid;gap:4px;font-size:12.5px;color:var(--mute);font-weight:600}
+.set input{font:600 16px var(--font);color:var(--ink);background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;min-width:0}
+.set input[type=range]{padding:0;accent-color:var(--acc);background:none;border:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--greybg);color:var(--ink2);border:0;border-radius:999px;padding:6px 12px;font:600 13px var(--font);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--acc);color:#fff}
+.deals{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px}
+.deal{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:10px;min-width:0;box-shadow:var(--shadow)}
+.deal.hot{border-color:var(--up);box-shadow:inset 4px 0 0 var(--up),var(--shadow)}
+.deal.risky{box-shadow:inset 4px 0 0 var(--down),var(--shadow)}
+.deal h3{margin:0;font-size:16px;font-weight:800;line-height:1.25}
+.deal img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;background:var(--greybg)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px}
+.meta{font-size:12.5px;color:var(--mute)}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.b-up{background:var(--upbg);color:var(--up)}.b-warn{background:var(--warnbg);color:var(--warn)}.b-down{background:var(--downbg);color:var(--down)}.b-acc{background:var(--accbg);color:var(--acc)}
+.track{height:8px;border-radius:4px;background:var(--greybg);position:relative;overflow:hidden}
+.fill{position:absolute;inset:0 auto 0 0;border-radius:4px}
+.mark{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink)}
+.figs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.figs div{background:var(--surf2);border-radius:10px;padding:6px 8px}
+.figs b{display:block;font-size:14px;font-variant-numeric:tabular-nums}
+.figs span{font-size:10.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em}
+.signals{display:flex;flex-wrap:wrap;gap:4px}
+.signals span{font-size:11px;border:1px solid var(--down);color:var(--down);border-radius:6px;padding:1px 6px}
+.actions{display:flex;flex-wrap:wrap;gap:6px}
+.btn{display:inline-flex;align-items:center;border:1px solid var(--line);background:var(--surf);color:var(--ink);border-radius:999px;padding:6px 13px;font:600 13px var(--font);cursor:pointer;text-decoration:none}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.empty{border:1px dashed var(--line);border-radius:16px;padding:20px;color:var(--mute);display:grid;gap:4px}
+.empty b{color:var(--ink)}
+.fiche{border-top:1px solid var(--line);padding-top:8px}
+.fiche summary{cursor:pointer;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;list-style:none}
+.fiche summary::-webkit-details-marker{display:none}
+.fiche summary>span:first-child::before{content:"▸ ";color:var(--acc)}
+.fiche[open] summary>span:first-child::before{content:"▾ "}
+.scores{display:flex;gap:10px;font-weight:600;color:var(--mute);font-size:12px}
+.dots{display:inline-flex;gap:2px;margin-left:4px;vertical-align:middle}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--greybg);border:1px solid var(--line)}
+.dots i.on{background:var(--acc);border-color:var(--acc)}
+.fiche-body{display:grid;gap:8px;margin-top:8px;font-size:13px}
+.fiche ul{margin:4px 0 0;padding-left:18px;display:grid;gap:2px}
+.fiche .plus{color:var(--up)} .fiche .minus{color:var(--down)}
+.fiche .eng p{margin:0;background:var(--warnbg);border-radius:8px;padding:6px 8px}
+.fiche .tip{margin:0;font-style:italic;color:var(--mute)}
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.form .wide{grid-column:1/-1}
+.form label{display:grid;gap:3px;font-size:12px;color:var(--mute);font-weight:600}
+.form input,.form select{font:500 14px var(--font);color:var(--ink);background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:7px 9px;width:100%;min-width:0}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px}
+.checks label{display:flex;gap:8px;align-items:flex-start;font-size:13px;background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:7px 9px;cursor:pointer}
+.checks input{accent-color:var(--down);margin-top:3px}
+.verdict{display:grid;gap:10px}
+.big{font-size:44px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.alert{border-radius:12px;padding:10px 12px;font-size:14px}
+.steps{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:10px}
+.step{background:var(--surf2);border-radius:14px;padding:12px;display:grid;grid-template-columns:30px 1fr;gap:10px}
+.step i{font-style:normal;font-weight:800;background:var(--accbg);color:var(--acc);border-radius:8px;height:30px;display:grid;place-items:center}
+.step b{display:block;font-size:13.5px}
+.step span{font-size:12.5px;color:var(--mute)}
+.links{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr));gap:8px}
+.links a{background:var(--surf2);border-radius:12px;padding:10px 12px;text-decoration:none;color:var(--ink);display:grid;gap:2px}
+.links a b{font-size:14px}.links a span{font-size:12px;color:var(--mute)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="hrow">
+      <div class="brand"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="rgba(255,255,255,.18)"/><circle cx="32" cy="32" r="18" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="3"/><circle cx="32" cy="32" r="8" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="3"/><path d="M32 32 L47 19" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="44" cy="40" r="4" fill="#34D399"/></svg>Radar</div>
+      <div class="scan" id="scanInfo">Chargement…</div>
+    </div>
+    <nav class="space" aria-label="Espaces"><a href="./">Investir</a><a href="auto.html" class="on" aria-current="page">Auto</a></nav>
+    <div class="hello">Radar auto<small id="helloSub">Les voitures 2022+ nettement sous leur prix de marché, triées et vérifiées.</small></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card">
+    <div class="kpis">
+      <div class="kpi"><b id="kTotal">–</b><span>annonces suivies</span></div>
+      <div class="kpi"><b id="kHot" style="color:var(--up)">–</b><span>au-dessus de ton seuil, sans alerte</span></div>
+      <div class="kpi"><b id="kRisk" style="color:var(--down)">–</b><span>suspectes écartées</span></div>
+      <div class="kpi"><b id="kNew">–</b><span>nouvelles au dernier scan</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="ctitle"><h2>Mes réglages</h2><span class="sub">Gardés sur cet appareil. Les alertes Telegram suivent auto-config.json.</span></div>
+    <div class="set">
+      <label>Décote visée : <span id="seuilV">30</span> %<input id="seuil" type="range" min="5" max="50" value="30"></label>
+      <label>Budget max (€)<input id="budget" type="number" step="500" value="15000"></label>
+      <label>Année min.<input id="annee" type="number" value="2022"></label>
+      <label>Km max<input id="kmmax" type="number" step="5000" value="100000"></label>
+      <label>Revente dans (mois)<input id="mois" type="number" value="18"></label>
+      <label>Perte de valeur / an (%)<input id="taux" type="number" value="12"></label>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="ctitle"><h2>Affaires détectées</h2>
+      <div class="chips" role="group" aria-label="Filtrer">
+        <button class="chip" data-f="all" aria-pressed="true">Toutes</button>
+        <button class="chip" data-f="hot" aria-pressed="false">Au-dessus du seuil</button>
+        <button class="chip" data-f="suv" aria-pressed="false">SUV</button>
+        <button class="chip" data-f="fr" aria-pressed="false">France</button>
+        <button class="chip" data-f="risk" aria-pressed="false">Suspectes</button>
+        <button class="chip" data-f="hidden" aria-pressed="false">Écartées</button>
+      </div>
+    </div>
+    <div class="deals" id="deals"><div class="empty"><b>Le premier scan arrive</b>Le scan tourne toutes les heures et dépose ici les annonces nettement sous leur cote.</div></div>
+  </section>
+
+  <section class="grid2">
+    <form class="card" id="form" autocomplete="off">
+      <div class="ctitle"><h2>Analyser une annonce</h2><span class="sub">Leboncoin, enchères, LLD…</span></div>
+      <div class="form">
+        <label class="wide">Modèle et motorisation<input id="fTitre" value="Peugeot 3008 1.2 PureTech 130 Allure"></label>
+        <label>Année<input id="fAnnee" type="number" value="2022"></label>
+        <label>Km<input id="fKm" type="number" value="62000"></label>
+        <label>Prix affiché €<input id="fPrix" type="number" value="13900"></label>
+        <label>Cote / marché €<input id="fCote" type="number" value="19500"></label>
+        <label>Canal<select id="fSource"><option value="particulier">Particulier FR</option><option value="pro">Pro FR</option><option value="encheres" selected>Enchères</option><option value="lld">Fin de LLD</option><option value="import">Import BE/LU/DE</option></select></label>
+        <label>Frais en plus €<input id="fFrais" type="number" value="1700"></label>
+      </div>
+      <p class="sub" style="margin:14px 0 6px">Signaux d'arnaque observés</p>
+      <div class="checks" id="checks"></div>
+    </form>
+    <div class="card verdict" aria-live="polite">
+      <div class="ctitle"><h2>Verdict</h2><span id="vRisk"></span></div>
+      <div><span class="big" id="vDec">–</span> <span class="sub">sous la cote, frais compris</span></div>
+      <div class="track"><div class="fill" id="vFill"></div><div class="mark" id="vMark"></div></div>
+      <div class="figs"><div><span>Coût total</span><b id="vCout"></b></div><div><span>Revente estimée</span><b id="vRev"></b></div><div><span>Marge</span><b id="vMarge"></b></div></div>
+      <div class="alert" id="vMsg"></div>
+      <div id="vFiche"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="ctitle"><h2>Avant de payer : le bouclier anti-arnaque</h2></div>
+    <div class="steps">
+      <div class="step"><i>1</i><div><b>Jamais d'acompte avant la visite</b><span>Vendeur « à l'étranger » ou « transporteur » qui veut un dépôt : arnaque n°1.</span></div></div>
+      <div class="step"><i>2</i><div><b>Rapport Histovec</b><span>Gratuit et officiel : propriétaires, sinistres, gage, kilométrages au CT.</span></div></div>
+      <div class="step"><i>3</i><div><b>VIN identique partout</b><span>Carte grise, pare-brise, plaque constructeur, carnet.</span></div></div>
+      <div class="step"><i>4</i><div><b>Vendeur = titulaire de la carte grise</b><span>Visite chez lui ou chez le pro, pas sur un parking.</span></div></div>
+      <div class="step"><i>5</i><div><b>Kilométrage cohérent</b><span>Factures, CT, usure. Belgique : Car-Pass obligatoire.</span></div></div>
+      <div class="step"><i>6</i><div><b>Paiement traçable le jour J</b><span>Virement instantané ou chèque de banque vérifié en appelant l'agence toi-même.</span></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="ctitle"><h2>Chercher ailleurs</h2><span class="sub">Active aussi les alertes de ces sites</span></div>
+    <div class="links" id="links"></div>
+    <p class="note" style="margin-top:12px">La cote affichée est une estimation : le prix médian d'annonces comparables (même modèle, année, carburant) en France, Belgique, Luxembourg et Allemagne, ajusté au kilométrage. Les prix allemands sont souvent plus bas : une partie de l'écart est ta marge d'import. Outil d'aide à la décision, pas un conseil.</p>
+  </section>
+</main>
+
+<script src="auto-fiches.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const eur=n=>isFinite(n)?Math.round(n).toLocaleString('fr-FR')+' €':'–';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store={get(k,d){try{const v=localStorage.getItem('auto.'+k);return v?JSON.parse(v):d}catch(_){return d}},set(k,v){try{localStorage.setItem('auto.'+k,JSON.stringify(v))}catch(_){}}};
+const SIGNALS=[['etranger','Vendeur à l’étranger ou « en mutation »',25],['acompte','Demande d’acompte avant visite',35],['pasvisite','Refuse la visite ou l’essai',25],['horsplateforme','Veut passer par WhatsApp / e-mail',15],['photos','Photos génériques ou incohérentes',15],['docs','Pas de carte grise ni de VIN visibles',15],['km','Kilométrage incohérent',15],['urgent','« Urgent » + prix cassé',10],['prixanormal','Prix jugé anormalement bas par le site',30],['appat','Prix affiché = mensualité ou apport',45]];
+const SRC={particulier:'Particulier FR',pro:'Pro FR',encheres:'Enchères',lld:'Fin de LLD',import:'Import'};
+let cfg=Object.assign({seuil:30,budget:15000,annee:2022,kmmax:100000,mois:18,taux:12},store.get('cfg',{}));
+let hidden=new Set(store.get('hidden',[])); let filter='all'; let data={deals:[]};
+
+function risk(dec,sig,src){let s=0;for(const k of sig||[]){const d=SIGNALS.find(x=>x[0]===k);if(d)s+=d[2];}
+  if(src==='particulier'||src==='pro'){if(dec>45)s+=35;else if(dec>35)s+=20;}else if(dec>55)s+=15;return Math.min(100,s);}
+function pill(r){return r>=50?['b-down','Arnaque probable']:r>=25?['b-warn','À vérifier']:['b-up','Risque faible'];}
+function calc(d){const cout=(+d.prix||0)+(+d.frais||0),cote=+d.cote||0,dec=cote?(cote-cout)/cote*100:0,rev=cote*Math.pow(1-cfg.taux/100,cfg.mois/12);return {cout,dec,rev,marge:rev-cout,risk:risk(dec,d.signaux,d.source)};}
+
+function render(){
+  const rows=(data.deals||[]).map(d=>({d,c:calc(d)}));
+  const vis=rows.filter(r=>!hidden.has(r.d.id));
+  const inCrit=r=>r.d.prix<=cfg.budget&&(r.d.annee||9999)>=cfg.annee&&r.d.km<=cfg.kmmax;
+  const isHot=r=>r.c.dec>=cfg.seuil&&r.c.risk<25&&inCrit(r);
+  $('#kTotal').textContent=rows.length;$('#kHot').textContent=vis.filter(isHot).length;$('#kRisk').textContent=rows.filter(r=>r.c.risk>=50).length;$('#kNew').textContent=data.stats?data.stats.nouvelles:'–';
+  let L=filter==='hidden'?rows.filter(r=>hidden.has(r.d.id)):vis;
+  if(filter==='hot')L=L.filter(isHot);
+  if(filter==='suv')L=L.filter(r=>r.d.carrosserie==='SUV');
+  if(filter==='fr')L=L.filter(r=>/\(FR\)/.test(r.d.ville||''));
+  if(filter==='risk')L=L.filter(r=>r.c.risk>=25);
+  L.sort((a,b)=>b.c.dec-a.c.dec);
+  const box=$('#deals');
+  if(!L.length){box.innerHTML=`<div class="empty"><b>${rows.length?'Rien dans ce filtre':'Le premier scan arrive'}</b>${rows.length?'Change de filtre ou baisse le seuil.':'Le scan tourne toutes les heures et dépose ici les annonces nettement sous leur cote.'}</div>`;return;}
+  box.innerHTML=L.slice(0,150).map(({d,c})=>{const [cls,lab]=pill(c.risk);const ok=c.dec>=cfg.seuil;const pct=Math.max(0,Math.min(60,c.dec))/60*100;const col=c.risk>=50?'var(--down)':ok?'var(--up)':'var(--warn)';
+    return `<article class="deal ${c.risk>=50?'risky':isHot({d,c})?'hot':''}">
+    ${d.photo?`<img src="${esc(d.photo)}" alt="" loading="lazy">`:''}
+    <div class="row"><span class="meta">${SRC[d.source]||''} · ${esc(d.ville)}</span><span class="badge ${cls}">${lab}</span></div>
+    <h3>${esc(d.titre)}</h3>
+    <div class="meta">${d.annee||'?'} · ${(+d.km).toLocaleString('fr-FR')} km${d.carburant?' · '+esc(d.carburant):''}${inCrit({d})?'':' · <span style="color:var(--warn)">hors critères</span>'}</div>
+    <div class="row"><span>Sous la cote, frais compris</span><b style="color:${col};font-size:16px">${c.dec>=0?'−':'+'}${Math.abs(c.dec).toFixed(0)} %</b></div>
+    <div class="track"><div class="fill" style="width:${pct}%;background:${col}"></div><div class="mark" style="left:${cfg.seuil/60*100}%"></div></div>
+    <div class="figs"><div><span>Prix + frais</span><b>${eur(c.cout)}</b></div><div><span>Cote</span><b>${eur(d.cote)}</b></div><div><span>Marge ${cfg.mois} m</span><b style="color:${c.marge>=0?'var(--up)':'var(--down)'}">${c.marge>=0?'+':''}${eur(c.marge)}</b></div></div>
+    ${d.signaux&&d.signaux.length?`<div class="signals">${d.signaux.map(s=>`<span>${esc((SIGNALS.find(x=>x[0]===s)||[,s])[1])}</span>`).join('')}</div>`:''}
+    ${ficheHTML(d.titre,false)}
+    <div class="meta">Cote : ${d.n||'?'} annonces comparables · détectée le ${new Date(d.detecteLe).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+    <div class="actions"><a class="btn pri" href="${esc(d.url)}" target="_blank" rel="noopener">Voir l'annonce</a><button class="btn" data-id="${esc(d.id)}">${hidden.has(d.id)?'Remettre':'Écarter'}</button></div>
+    </article>`;}).join('');
+}
+$('#deals').addEventListener('click',e=>{const b=e.target.closest('button[data-id]');if(!b)return;const id=b.dataset.id;hidden.has(id)?hidden.delete(id):hidden.add(id);store.set('hidden',[...hidden]);render();});
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{filter=c.dataset.f;document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',x===c));render();}));
+
+// Réglages
+function applyCfg(){for(const k of ['seuil','budget','annee','kmmax','mois','taux'])$('#'+k).value=cfg[k];$('#seuilV').textContent=cfg.seuil;}
+for(const k of ['seuil','budget','annee','kmmax','mois','taux'])$('#'+k).addEventListener('input',()=>{cfg[k]=+$('#'+k).value;$('#seuilV').textContent=cfg.seuil;store.set('cfg',cfg);render();verdict();links();});
+
+// Analyseur
+$('#checks').innerHTML=SIGNALS.slice(0,8).map(([k,l])=>`<label><input type="checkbox" value="${k}"><span>${l}</span></label>`).join('');
+function verdict(){
+  const d={titre:$('#fTitre').value,prix:+$('#fPrix').value,cote:+$('#fCote').value,frais:+$('#fFrais').value,source:$('#fSource').value,signaux:[...document.querySelectorAll('#checks input:checked')].map(i=>i.value)};
+  const c=calc(d),ok=c.dec>=cfg.seuil,[cls,lab]=pill(c.risk);
+  const col=c.risk>=50?'var(--down)':ok?'var(--up)':'var(--warn)';
+  $('#vDec').textContent=(c.dec>=0?'−':'+')+Math.abs(c.dec).toFixed(0)+' %';$('#vDec').style.color=col;
+  $('#vFill').style.width=Math.max(0,Math.min(60,c.dec))/60*100+'%';$('#vFill').style.background=col;$('#vMark').style.left=cfg.seuil/60*100+'%';
+  $('#vRisk').innerHTML=`<span class="badge ${cls}">${lab} · ${c.risk}/100</span>`;
+  $('#vCout').textContent=eur(c.cout);$('#vRev').textContent=eur(c.rev);$('#vMarge').textContent=(c.marge>=0?'+':'')+eur(c.marge);$('#vMarge').style.color=c.marge>=0?'var(--up)':'var(--down)';
+  let m;if(c.risk>=50)m='Trop beau pour être vrai sur ce canal. N’envoie rien, exige une visite chez le titulaire de la carte grise.';
+  else if(ok&&c.marge>0)m=`Feu vert : ${c.dec.toFixed(0)} % sous la cote frais compris, marge estimée ${eur(c.marge)} à ${cfg.mois} mois. Passe le bouclier anti-arnaque puis réserve vite.`;
+  else if(c.dec>0)m=`Sous la cote de ${c.dec.toFixed(0)} %, mais sous ton seuil de ${cfg.seuil} %. Négocie encore ${eur(c.cout-d.cote*(1-cfg.seuil/100))}.`;
+  else m='Au-dessus de la cote une fois les frais ajoutés : ta règle dit non.';
+  const a=$('#vMsg');a.textContent=m;a.style.background=c.risk>=50?'var(--downbg)':ok&&c.marge>0?'var(--upbg)':'var(--warnbg)';
+  $('#vFiche').innerHTML=ficheHTML(d.titre,true);
+}
+$('#form').addEventListener('input',verdict);$('#form').addEventListener('submit',e=>e.preventDefault());
+
+function links(){const {budget:b,annee:a,kmmax:k}=cfg;const L=[
+ ['Leboncoin',`https://www.leboncoin.fr/recherche?category=2&regdate=${a}-max&mileage=min-${k}&price=min-${b}`,'Particuliers et pros'],
+ ['La Centrale',`https://www.lacentrale.fr/listing?yearMin=${a}&mileageMax=${k}&priceMax=${b}`,'Indicateur bonne affaire'],
+ ['AutoScout24 (4 pays)',`https://www.autoscout24.fr/lst?body=4&fregfrom=${a}&kmto=${k}&priceto=${b}&cy=F,B,L,D&atype=C&sort=age&desc=1`,'Source du scan'],
+ ['mobile.de','https://www.mobile.de/fr/','Plus gros marché européen'],
+ ['Alcopa Auction','https://www.alcopa-auction.fr/','Enchères ouvertes aux particuliers'],
+ ['VPauto','https://www.vpauto.fr/','Enchères, fins de LLD'],
+ ['Ayvens occasions','https://used-cars.ayvens.com/','Retours de LLD'],
+ ['Histovec','https://histovec.interieur.gouv.fr/','Historique officiel']];
+ $('#links').innerHTML=L.map(([n,u,s])=>`<a href="${u}" target="_blank" rel="noopener"><b>${n}</b><span>${s}</span></a>`).join('');}
+
+applyCfg();verdict();links();
+fetch('data/auto.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{
+  if(j){data=j;$('#scanInfo').textContent='Scan auto : '+new Date(j.updated).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'})+(j.stats?' · '+j.stats.lues+' annonces lues':'');}
+  else $('#scanInfo').textContent='Premier scan en attente';
+  render();
+}).catch(()=>{$('#scanInfo').textContent='Données indisponibles';render();});
+</script>
+</body>
+</html>

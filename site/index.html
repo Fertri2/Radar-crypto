@@ -159,15 +159,19 @@ nav.bottom .dotn{position:absolute;top:2px;left:calc(50% + 8px);min-width:16px;h
 .foot{font-size:12px;color:var(--mute);text-align:center;margin:20px 0 10px}
 @media (max-width:520px){.hello{font-size:21px}.mission .ico{width:52px;height:52px}.mission .t{font-size:17px}.card{padding:15px;border-radius:18px}.mrow{grid-template-columns:minmax(0,1fr) 70px minmax(0,.9fr)}.kpi3 b{font-size:15px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.space{display:inline-flex;background:rgba(255,255,255,.14);border-radius:999px;padding:3px;gap:2px;margin-top:14px}
+.space a{color:#fff;text-decoration:none;font-weight:700;font-size:13.5px;padding:6px 16px;border-radius:999px;opacity:.85}
+.space a.on{background:#fff;color:#4F46E5;opacity:1}
 </style>
 </head>
 <body>
 <header>
   <div class="wrap">
     <div class="hrow">
-      <div class="brand"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="rgba(255,255,255,.18)"/><circle cx="32" cy="32" r="18" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="3"/><circle cx="32" cy="32" r="8" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="3"/><path d="M32 32 L47 19" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="44" cy="40" r="4" fill="#34D399"/></svg>Radar crypto</div>
+      <div class="brand"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="rgba(255,255,255,.18)"/><circle cx="32" cy="32" r="18" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="3"/><circle cx="32" cy="32" r="8" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="3"/><path d="M32 32 L47 19" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="44" cy="40" r="4" fill="#34D399"/></svg>Radar</div>
       <div class="scan" id="scanInfo">Chargement…</div>
     </div>
+    <nav class="space" aria-label="Espaces"><a href="./" class="on" aria-current="page">Investir</a><a href="auto.html">Auto</a></nav>
     <div class="hello" id="hello">Bonjour<small id="helloSub">Voici ce que le marché dit ce matin.</small></div>
     <nav class="top" id="navTop" aria-label="Sections"></nav>
   </div>
