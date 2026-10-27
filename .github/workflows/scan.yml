@@ -32,6 +32,8 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
+      - name: Garder les données auto déjà publiées
+        run: curl -fsSL "https://fertri2.github.io/Radar-crypto/data/auto.json?t=$(date +%s)" -o site/data/auto.json || rm -f site/data/auto.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
