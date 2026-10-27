@@ -1,0 +1,8 @@
+{
+  "seuil": 30,
+  "budget": 15000,
+  "annee": 2022,
+  "kmmax": 100000,
+  "decoteMin": 18,
+  "pays": "F,B,L,D"
+}
