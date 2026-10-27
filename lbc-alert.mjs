@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
 const CFG = { seuil: 30, budget: 15000, annee: 2022, kmmax: 100000, ...JSON.parse(readFileSync('auto-config.json', 'utf8')) };
 const SITE = 'https://fertri2.github.io/Radar-crypto/';
-const { ficheFor } = new Function(readFileSync('site/auto-fiches.js', 'utf8') + ';return { ficheFor };')();
+const { ficheFor, familleFor } = new Function(readFileSync('site/auto-fiches.js', 'utf8') + ';return { ficheFor, familleFor };')();
 const read = f => { try { return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null; } catch (_) { return null; } };
 
 const batch = read('site/data/lbc.json') || { deals: [] };
@@ -17,8 +17,10 @@ const deals = [...fresh, ...prev.deals].filter(d => now - Date.parse(d.detecteLe
 
 const alerted = new Set(prev.alerted || []);
 const pct = d => Math.round((d.cote - d.prix - d.frais) / d.cote * 100);
-const hot = deals.filter(d => !alerted.has(d.id) && !(d.signaux || []).length && pct(d) >= CFG.seuil
-  && d.prix <= CFG.budget && (d.annee || 0) >= CFG.annee && d.km <= CFG.kmmax && now - Date.parse(d.detecteLe) < 2 * 864e5).slice(0, 5);
+const famS = d => familleFor(d.titre, d.places).s || 0;
+const hot = deals.filter(d => !alerted.has(d.id) && !(d.signaux || []).length && pct(d) >= (famS(d) >= 2 ? CFG.seuilFamille ?? CFG.seuil : CFG.seuil)
+  && d.prix <= CFG.budget && (d.annee || 0) >= CFG.annee && d.km <= CFG.kmmax && now - Date.parse(d.detecteLe) < 2 * 864e5)
+  .sort((a, b) => famS(b) - famS(a)).slice(0, 5);
 const eur = n => Math.round(n).toLocaleString('fr-FR') + ' €';
 let tg = 'rien à envoyer';
 if (hot.length) {
@@ -27,7 +29,8 @@ if (hot.length) {
   else {
     const txt = hot.map(d => {
       const { f, eng } = ficheFor(d.titre);
-      return [`🚨 AFFAIRE LEBONCOIN — ${d.titre}`, `${d.annee} · ${(+d.km).toLocaleString('fr-FR')} km · ${d.ville} · ${d.source === 'pro' ? 'pro' : 'particulier'}`,
+      const fm = familleFor(d.titre, d.places);
+      return [`🚨 AFFAIRE LEBONCOIN — ${d.titre}`, fm.s >= 2 ? `👨‍👩‍👧‍👦 ${fm.s === 3 ? 'Idéal famille' : 'Famille OK'} : ${fm.n}` : '', `${d.annee} · ${(+d.km).toLocaleString('fr-FR')} km · ${d.ville} · ${d.source === 'pro' ? 'pro' : 'particulier'}`,
         `${eur(d.prix)} (−${pct(d)} % sous l'estimation Leboncoin ${eur(d.coteMin)}–${eur(d.coteMax)}, frais compris)`,
         eng[0] ? '⚙ ' + eng[0] : (f ? '⚙ ' + f.faibles[0] : ''), f ? `💶 Revente ${'●'.repeat(f.r)}${'○'.repeat(5 - f.r)} · Fiabilité ${'●'.repeat(f.f)}${'○'.repeat(5 - f.f)}` : '', d.url].filter(Boolean).join('\n');
     }).join('\n\n') + `\n\n${SITE}auto.html`;

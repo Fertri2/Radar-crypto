@@ -4,5 +4,7 @@
   "annee": 2022,
   "kmmax": 100000,
   "decoteMin": 18,
+  "seuilFamille": 25,
+  "decoteMinFamille": 12,
   "pays": "F,B,L,D"
 }

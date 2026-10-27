@@ -9,7 +9,7 @@ const CFG = { seuil: 30, budget: 15000, annee: 2022, kmmax: 100000, decoteMin: 1
 const SITE = 'https://fertri2.github.io/Radar-crypto/';
 const AS = 'https://www.autoscout24.fr';
 const HEADERS = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'accept-language': 'fr-FR,fr;q=0.9', accept: 'text/html,application/xhtml+xml' };
-const { ficheFor } = new Function(readFileSync('site/auto-fiches.js', 'utf8') + ';return { ficheFor };')();
+const { ficheFor, familleFor } = new Function(readFileSync('site/auto-fiches.js', 'utf8') + ';return { ficheFor, familleFor };')();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const errors = [];
 let requests = 0;
@@ -103,9 +103,10 @@ for (const x of listings) {
   const c = cote(await comps(key), km);
   if (!c || !(c.ref > 0)) continue;
   const dec = (c.ref - prix) / c.ref * 100;
-  if (dec < CFG.decoteMin) continue;
+  const fam = familleFor(`${x.vehicle.make} ${x.vehicle.model} ${x.vehicle.modelVersionInput || ''}`).s || 0;
+  if (dec < (fam >= 2 ? CFG.decoteMinFamille ?? 12 : CFG.decoteMin)) continue;
   const model = `${x.vehicle.make} ${x.vehicle.model}`;
-  perModel[model] = (perModel[model] || 0) + 1; if (perModel[model] > 3) continue;
+  perModel[model] = (perModel[model] || 0) + 1; if (perModel[model] > (fam >= 2 ? 8 : 3)) continue;
   const cc = x.location?.countryCode || '?', pro = x.seller?.type === 'Dealer';
   const imp = cc !== 'FR';
   const signaux = [];
@@ -125,7 +126,9 @@ const deals = [...fresh, ...prev.deals.filter(d => now - Date.parse(d.detecteLe)
 // Alertes Telegram : décote frais compris ≥ seuil et aucun signal d'arnaque
 const alerted = new Set(prev.alerted || []);
 const eur = n => Math.round(n).toLocaleString('fr-FR') + ' €';
-const hot = fresh.filter(d => !d.signaux.length && !alerted.has(d.id) && (d.cote - d.prix - d.frais) / d.cote * 100 >= CFG.seuil).slice(0, 5);
+const famS = d => familleFor(d.titre, d.places).s || 0;
+const hot = fresh.filter(d => !d.signaux.length && !alerted.has(d.id) && (d.cote - d.prix - d.frais) / d.cote * 100 >= (famS(d) >= 2 ? CFG.seuilFamille ?? CFG.seuil : CFG.seuil))
+  .sort((a, b) => famS(b) - famS(a)).slice(0, 5);
 let tg = 'rien à envoyer';
 if (hot.length) {
   const tok = process.env.TG_TOKEN, chat = process.env.TG_CHAT;
@@ -134,7 +137,8 @@ if (hot.length) {
     const txt = hot.map(d => {
       const { f, eng } = ficheFor(d.titre);
       const pct = Math.round((d.cote - d.prix - d.frais) / d.cote * 100);
-      return [`🚨 AFFAIRE AUTO — ${d.titre}`, `${d.annee} · ${d.km.toLocaleString('fr-FR')} km · ${d.ville}`, `${eur(d.prix)} (−${pct} % sous la cote ~${eur(d.cote)}, frais compris)`,
+      const fm = familleFor(d.titre, d.places);
+      return [`🚨 AFFAIRE AUTO — ${d.titre}`, fm.s >= 2 ? `👨‍👩‍👧‍👦 ${fm.s === 3 ? 'Idéal famille' : 'Famille OK'} : ${fm.n}` : '', `${d.annee} · ${d.km.toLocaleString('fr-FR')} km · ${d.ville}`, `${eur(d.prix)} (−${pct} % sous la cote ~${eur(d.cote)}, frais compris)`,
         eng[0] ? '⚙ ' + eng[0] : (f ? '⚙ ' + f.faibles[0] : ''), f ? `💶 Revente ${'●'.repeat(f.r)}${'○'.repeat(5 - f.r)} · Fiabilité ${'●'.repeat(f.f)}${'○'.repeat(5 - f.f)}` : '', d.url].filter(Boolean).join('\n');
     }).join('\n\n') + `\n\n${SITE}auto.html`;
     try {
