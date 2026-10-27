@@ -1,0 +1,32 @@
+name: Test Leboncoin
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Tester l'accès à Leboncoin depuis GitHub
+        run: |
+          cat > t.mjs <<'EOF'
+          const H = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'accept-language': 'fr-FR,fr;q=0.9', accept: 'text/html,application/xhtml+xml' };
+          let ok = 0;
+          for (const p of [1, 2]) {
+            const r = await fetch('https://www.leboncoin.fr/recherche?category=2&regdate=2022-max&mileage=min-100000&price=min-15000&sort=time&order=desc&page=' + p, { headers: H });
+            const h = await r.text();
+            const m = h.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
+            const n = m ? (JSON.parse(m[1]).props?.pageProps?.searchData?.ads || []).length : 0;
+            console.log(`Page ${p} : HTTP ${r.status}, annonces lues : ${n}, protection : ${/datadome|captcha-delivery/i.test(h) ? 'OUI (bloqué)' : 'non'}`);
+            if (n) ok++;
+          }
+          console.log(ok ? 'RESULTAT : Leboncoin accessible depuis GitHub' : 'RESULTAT : Leboncoin BLOQUE depuis GitHub');
+          process.exit(ok ? 0 : 1);
+          EOF
+          node t.mjs
