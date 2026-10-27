@@ -42,7 +42,9 @@ const known = new Set(prev.deals.map(d => d.id));
 const seen = new Set();
 const listings = [];
 const base = `&cy=${CFG.pays}&atype=C&ustate=N,U&fregfrom=${CFG.annee}&kmto=${CFG.kmmax}&priceto=${Math.round(CFG.budget * 1.3)}&sort=age&desc=1`;
-const passes = [['suv', `${AS}/lst?body=4${base}`, 10], ['toutes', `${AS}/lst?${base.slice(1)}`, 5]];
+const deep = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'; // lancement manuel = balayage profond
+const cheap = base.replace('&sort=age&desc=1', '&sort=price&desc=0');
+const passes = [['suv', `${AS}/lst?body=4${base}`, 10], ['toutes', `${AS}/lst?${base.slice(1)}`, 5], ['suv', `${AS}/lst?body=4${cheap}`, deep ? 20 : 2], ['toutes', `${AS}/lst?${cheap.slice(1)}`, deep ? 10 : 1]];
 for (const [body, url, pages] of passes) {
   for (let p = 1; p <= pages; p++) {
     try {
