@@ -142,6 +142,7 @@ h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
       <label>Km max<input id="kmmax" type="number" step="5000" value="100000"></label>
       <label>Revente dans (mois)<input id="mois" type="number" value="18"></label>
       <label>Perte de valeur / an (%)<input id="taux" type="number" value="12"></label>
+      <label style="display:flex;align-items:center;gap:8px;color:var(--ink)"><input id="famille" type="checkbox" checked style="width:auto;accent-color:var(--acc)">Familiales en premier (5 personnes)</label>
     </div>
   </section>
 
@@ -149,6 +150,7 @@ h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
     <div class="ctitle"><h2>Affaires détectées</h2>
       <div class="chips" role="group" aria-label="Filtrer">
         <button class="chip" data-f="all" aria-pressed="true">Toutes</button>
+        <button class="chip" data-f="fam" aria-pressed="false">Familiales</button>
         <button class="chip" data-f="hot" aria-pressed="false">Au-dessus du seuil</button>
         <button class="chip" data-f="suv" aria-pressed="false">SUV</button>
         <button class="chip" data-f="fr" aria-pressed="false">France</button>
@@ -212,7 +214,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const store={get(k,d){try{const v=localStorage.getItem('auto.'+k);return v?JSON.parse(v):d}catch(_){return d}},set(k,v){try{localStorage.setItem('auto.'+k,JSON.stringify(v))}catch(_){}}};
 const SIGNALS=[['etranger','Vendeur à l’étranger ou « en mutation »',25],['acompte','Demande d’acompte avant visite',35],['pasvisite','Refuse la visite ou l’essai',25],['horsplateforme','Veut passer par WhatsApp / e-mail',15],['photos','Photos génériques ou incohérentes',15],['docs','Pas de carte grise ni de VIN visibles',15],['km','Kilométrage incohérent',15],['urgent','« Urgent » + prix cassé',10],['prixanormal','Prix jugé anormalement bas par le site',30],['appat','Prix affiché = mensualité ou apport',45]];
 const SRC={particulier:'Particulier FR',pro:'Pro FR',encheres:'Enchères',lld:'Fin de LLD',import:'Import'};
-let cfg=Object.assign({seuil:30,budget:15000,annee:2022,kmmax:100000,mois:18,taux:12},store.get('cfg',{}));
+let cfg=Object.assign({seuil:30,budget:15000,annee:2022,kmmax:100000,mois:18,taux:12,famille:true},store.get('cfg',{}));
 let hidden=new Set(store.get('hidden',[])); let filter='all'; let data={deals:[]};
 
 function risk(dec,sig,src){let s=0;for(const k of sig||[]){const d=SIGNALS.find(x=>x[0]===k);if(d)s+=d[2];}
@@ -221,7 +223,7 @@ function pill(r){return r>=50?['b-down','Arnaque probable']:r>=25?['b-warn','À 
 function calc(d){const cout=(+d.prix||0)+(+d.frais||0),cote=+d.cote||0,dec=cote?(cote-cout)/cote*100:0,rev=cote*Math.pow(1-cfg.taux/100,cfg.mois/12);return {cout,dec,rev,marge:rev-cout,risk:risk(dec,d.signaux,d.source)};}
 
 function render(){
-  const rows=(data.deals||[]).map(d=>({d,c:calc(d)}));
+  const rows=(data.deals||[]).map(d=>({d,c:calc(d),fm:familleFor(d.titre,d.places)}));
   const vis=rows.filter(r=>!hidden.has(r.d.id));
   const inCrit=r=>r.d.prix<=cfg.budget&&(r.d.annee||9999)>=cfg.annee&&r.d.km<=cfg.kmmax;
   const isHot=r=>r.c.dec>=cfg.seuil&&r.c.risk<25&&inCrit(r);
@@ -232,14 +234,16 @@ function render(){
   if(filter==='fr')L=L.filter(r=>/\(FR\)/.test(r.d.ville||''));
   if(filter==='risk')L=L.filter(r=>r.c.risk>=25);
   if(filter==='lbc')L=L.filter(r=>r.d.site==='lbc');
-  L.sort((a,b)=>b.c.dec-a.c.dec);
+  if(filter==='fam')L=L.filter(r=>(r.fm.s||0)>=2);
+  L.sort((a,b)=>(cfg.famille?((b.fm.s??1)-(a.fm.s??1)):0)||b.c.dec-a.c.dec);
   const box=$('#deals');
   if(!L.length){box.innerHTML=`<div class="empty"><b>${rows.length?'Rien dans ce filtre':'Le premier scan arrive'}</b>${rows.length?'Change de filtre ou baisse le seuil.':'Le scan tourne toutes les heures et dépose ici les annonces nettement sous leur cote.'}</div>`;return;}
-  box.innerHTML=L.slice(0,150).map(({d,c})=>{const [cls,lab]=pill(c.risk);const ok=c.dec>=cfg.seuil;const pct=Math.max(0,Math.min(60,c.dec))/60*100;const col=c.risk>=50?'var(--down)':ok?'var(--up)':'var(--warn)';
+  box.innerHTML=L.slice(0,150).map(({d,c,fm})=>{const [cls,lab]=pill(c.risk);const ok=c.dec>=cfg.seuil;const pct=Math.max(0,Math.min(60,c.dec))/60*100;const col=c.risk>=50?'var(--down)':ok?'var(--up)':'var(--warn)';
     return `<article class="deal ${c.risk>=50?'risky':isHot({d,c})?'hot':''}">
     ${d.photo?`<img src="${esc(d.photo)}" alt="" loading="lazy">`:''}
     <div class="row"><span class="meta">${d.site==='lbc'?'Leboncoin · ':'AutoScout24 · '}${SRC[d.source]||''} · ${esc(d.ville)}</span><span class="badge ${cls}">${lab}</span></div>
     <h3>${esc(d.titre)}</h3>
+    ${familleBadge(fm)?`<div class="row" style="justify-content:flex-start">${familleBadge(fm)}<span class="meta">${esc(fm.n)}</span></div>`:''}
     <div class="meta">${d.annee||'?'} · ${(+d.km).toLocaleString('fr-FR')} km${d.carburant?' · '+esc(d.carburant):''}${inCrit({d})?'':' · <span style="color:var(--warn)">hors critères</span>'}</div>
     <div class="row"><span>Sous la cote, frais compris</span><b style="color:${col};font-size:16px">${c.dec>=0?'−':'+'}${Math.abs(c.dec).toFixed(0)} %</b></div>
     <div class="track"><div class="fill" style="width:${pct}%;background:${col}"></div><div class="mark" style="left:${cfg.seuil/60*100}%"></div></div>
@@ -254,7 +258,8 @@ $('#deals').addEventListener('click',e=>{const b=e.target.closest('button[data-i
 document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{filter=c.dataset.f;document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',x===c));render();}));
 
 // Réglages
-function applyCfg(){for(const k of ['seuil','budget','annee','kmmax','mois','taux'])$('#'+k).value=cfg[k];$('#seuilV').textContent=cfg.seuil;}
+function applyCfg(){for(const k of ['seuil','budget','annee','kmmax','mois','taux'])$('#'+k).value=cfg[k];$('#seuilV').textContent=cfg.seuil;$('#famille').checked=!!cfg.famille;}
+$('#famille').addEventListener('change',()=>{cfg.famille=$('#famille').checked;store.set('cfg',cfg);render();});
 for(const k of ['seuil','budget','annee','kmmax','mois','taux'])$('#'+k).addEventListener('input',()=>{cfg[k]=+$('#'+k).value;$('#seuilV').textContent=cfg.seuil;store.set('cfg',cfg);render();verdict();links();});
 
 // Analyseur

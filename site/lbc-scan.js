@@ -33,12 +33,14 @@
       if (!prix || !mn || !mx) continue;
       const cote = Math.round((mn + mx) / 2);
       const dec = (cote - prix) / cote * 100;
-      if (dec < C.decoteMin) continue;
       let marque = g(a, 'brand') || '';
       if (/^autres?$/i.test(marque)) marque = (g(a, 'u_car_brand') || '').replace(/_/g, ' ');
       const version = g(a, 'u_car_version') || a.subject || '';
       if (version.toLowerCase().startsWith(marque.toLowerCase())) marque = '';
       const titre = `${marque} ${version}`.replace(/\s+/g, ' ').trim().slice(0, 80);
+      const places = +g(a, 'seats') || 0;
+      const familiale = places >= 7 || ['4x4', 'monospace', 'break'].includes(g(a, 'vehicle_type')) || /5008|kodiaq|jogger|sorento|santa fe|x-trail|outlander|tarraco|allspace|c5 aircross|espace|berlingo|rifter|kangoo|touran|spacetourer|3008|sportage|tucson|rav4|austral|tiguan|karoq|kuga|qashqai|ateca|grandland|cx-5|duster/i.test(titre);
+      if (dec < (familiale ? (C.decoteMinFamille ?? 12) : C.decoteMin)) continue;
       const txt = (a.subject || '') + ' ' + (a.body || '');
       const signaux = [];
       if (dec > 45) signaux.push('prixanormal');
@@ -46,7 +48,7 @@
       if (/acompte|r[ée]servation|mandat|western|transcash|paysafe/i.test(txt)) signaux.push('acompte');
       if (/urgent|vite|d[ée]part imm[ée]diat/i.test(txt)) signaux.push('urgent');
       deals.push({
-        id, site: 'lbc', titre, annee: +g(a, 'regdate') || null, km: +g(a, 'mileage') || 0, prix, cote, coteMin: mn, coteMax: mx,
+        id, site: 'lbc', titre, places, annee: +g(a, 'regdate') || null, km: +g(a, 'mileage') || 0, prix, cote, coteMin: mn, coteMax: mx,
         frais: 300, source: a.owner && a.owner.type === 'pro' ? 'pro' : 'particulier',
         ville: `${(a.location && (a.location.city_label || a.location.city)) || ''} (FR)`, url: a.url,
         carburant: FUEL[g(a, 'fuel')] || '', carrosserie: g(a, 'vehicle_type') === '4x4' ? 'SUV' : '',

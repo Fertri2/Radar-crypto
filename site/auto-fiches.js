@@ -57,6 +57,42 @@ function ficheFor(titre){
   const eng=ENGINES.filter(([re])=>re.test(titre||'')).map(e=>e[1]);
   return {f:best,eng};
 }
+// Adaptation à la famille (2 adultes + 3 enfants, dont un de 4 ans en siège auto).
+// 3 = idéal (7 places ou 3 vraies places arrière + grand coffre), 2 = correct, 1 = juste à 5, 0 = trop petite.
+const FAMILLE=[
+ ['peugeot 5008',3,'7 places, 3 sièges arrière individuels'],['skoda kodiaq',3,'7 places possibles, très grand coffre'],['dacia jogger',3,'7 places au meilleur prix'],
+ ['kia sorento',3,'7 places, très spacieux'],['hyundai santa fe',3,'7 places, très spacieux'],['nissan x-trail',3,'7 places possibles'],['mitsubishi outlander',3,'7 places possibles'],
+ ['seat tarraco',3,'7 places possibles'],['volkswagen tiguan allspace',3,'7 places possibles'],['citroen c5 aircross',3,'3 sièges arrière individuels de même largeur'],
+ ['renault espace',3,'7 places possibles'],['citroen berlingo',3,'Ludospace : 3 vraies places arrière, portes coulissantes'],['peugeot rifter',3,'Ludospace : 3 vraies places arrière, portes coulissantes'],
+ ['renault kangoo',3,'Ludospace : portes coulissantes, très pratique'],['volkswagen touran',3,'Monospace 7 places'],['spacetourer',3,'Monospace 7 places'],['grand c4',3,'Monospace 7 places'],
+ ['ford s-max',3,'Monospace 7 places'],['ford galaxy',3,'Monospace 7 places'],['opel zafira',3,'Monospace 7 places'],['toyota proace city',3,'Ludospace spacieux'],
+ ['peugeot 3008',2,'SUV familial 5 places, bon coffre'],['kia sportage',2,'SUV familial, banquette large'],['hyundai tucson',2,'SUV familial, banquette large'],['toyota rav4',2,'SUV familial, grand coffre'],
+ ['renault austral',2,'SUV familial 5 places'],['volkswagen tiguan',2,'SUV familial 5 places'],['skoda karoq',2,'SUV familial, sièges arrière modulables'],['ford kuga',2,'SUV familial 5 places'],
+ ['nissan qashqai',2,'SUV familial 5 places'],['seat ateca',2,'SUV familial 5 places'],['opel grandland',2,'SUV familial 5 places'],['mazda cx-5',2,'SUV familial 5 places'],
+ ['bmw x1',2,'SUV familial premium'],['audi q3',2,'SUV familial premium'],['dacia duster',2,'Coffre généreux, banquette un peu étroite à 3'],['mg hs',2,'SUV familial 5 places'],
+ ['skoda octavia',2,'Grand coffre, banquette large'],['skoda superb',2,'Très grande banquette arrière'],['peugeot 308 sw',2,'Break familial'],['toyota corolla touring',2,'Break familial'],
+ ['jeep compass',2,'SUV compact 5 places'],['renault arkana',1,'Garde au toit réduite à l’arrière'],
+ ['peugeot 2008',1,'Juste pour 3 enfants dont un en siège auto'],['citroen c3 aircross',1,'Juste à 5'],['opel crossland',1,'Juste à 5'],['opel mokka',1,'Petit coffre, juste à 5'],
+ ['volkswagen t-roc',1,'Juste à 5'],['volkswagen t-cross',1,'Juste à 5'],['volkswagen taigo',1,'Juste à 5'],['skoda kamiq',1,'Juste à 5'],['seat arona',1,'Juste à 5'],
+ ['mg zs',1,'Juste à 5'],['hyundai kona',1,'Juste à 5'],['hyundai bayon',1,'Juste à 5'],['nissan juke',1,'Places arrière étroites'],['jeep avenger',1,'Petit SUV'],
+ ['renault captur',1,'Juste à 5'],['ford puma',1,'Juste à 5'],['ford ecosport',1,'Juste à 5'],['kia stonic',1,'Juste à 5'],['kia niro',1,'Juste à 5'],['toyota c-hr',1,'Places arrière étroites'],
+ ['toyota yaris cross',1,'Petit SUV'],['audi q2',1,'Petit SUV'],['fiat 600',1,'Petit SUV'],['fiat 500x',1,'Petit SUV'],['jeep renegade',1,'Petit SUV'],['mazda cx-30',1,'Places arrière étroites'],
+ ['dacia sandero',0,'Citadine, trop petite pour 5'],['dacia spring',0,'4 places seulement'],['citroen c3',0,'Citadine'],['peugeot 208',0,'Citadine'],['renault clio',0,'Citadine'],
+ ['fiat 500',0,'Citadine'],['fiat panda',0,'Citadine'],['suzuki ignis',0,'Citadine'],['bmw serie 1',0,'Compacte, banquette étroite'],['volkswagen polo',0,'Citadine'],
+];
+function familleFor(titre,places){
+  const t=(titre||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  let best=null,len=0;for(const [k,s,n] of FAMILLE){if(t.includes(k)&&k.length>len){best={s,n};len=k.length;}}
+  if((+places||0)>=7||/\b7 ?(places|pl\b|sitze|sitzer|seats)|7-sitze|7p\b/i.test(titre||''))best={s:3,n:'7 places'};
+  return best||{s:null,n:''};
+}
+function familleBadge(fm){
+  if(fm.s===3)return '<span class="badge b-up">Idéal famille</span>';
+  if(fm.s===2)return '<span class="badge b-acc">Famille OK</span>';
+  if(fm.s===1)return '<span class="badge b-warn">Juste à 5</span>';
+  if(fm.s===0)return '<span class="badge b-down">Trop petite</span>';
+  return '';
+}
 function dots(n){return '<span class="dots" aria-label="'+n+' sur 5">'+[1,2,3,4,5].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')+'</span>';}
 function ficheHTML(titre,open){
   const {f,eng}=ficheFor(titre);
@@ -66,6 +102,7 @@ function ficheHTML(titre,open){
    ${f?`<div class="fl"><b class="plus">Points forts</b><ul>${f.forts.map(x=>`<li>${x}</li>`).join('')}</ul></div>
    <div class="fl"><b class="minus">Points faibles</b><ul>${f.faibles.map(x=>`<li>${x}</li>`).join('')}</ul></div>`:''}
    ${eng.length?`<div class="eng">${eng.map(x=>`<p>⚙ ${x}</p>`).join('')}</div>`:''}
+   ${(()=>{const fm=familleFor(titre);return fm.s!==null?`<p class="tip">Famille de 5 : ${['trop petite','juste','correcte','idéale'][fm.s]} — ${fm.n}</p>`:''})()}
    ${f&&f.conseil?`<p class="tip">${f.conseil}</p>`:''}
    </div></details>`;
 }
