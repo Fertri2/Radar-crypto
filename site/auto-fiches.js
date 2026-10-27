@@ -84,6 +84,7 @@ function familleFor(titre,places){
   const t=(titre||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
   let best=null,len=0;for(const [k,s,n] of FAMILLE){if(t.includes(k)&&k.length>len){best={s,n};len=k.length;}}
   if((+places||0)>=7||/\b7 ?(places|pl\b|sitze|sitzer|seats)|7-sitze|7p\b/i.test(titre||''))best={s:3,n:'7 places'};
+  if(/\bvan\b|utilitaire|fourgon|\b1000 ?kg\b|\b[23] places/i.test(titre||''))best={s:0,n:'Utilitaire, pas de vraie banquette arrière'};
   return best||{s:null,n:''};
 }
 function familleBadge(fm){
