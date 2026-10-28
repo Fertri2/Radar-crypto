@@ -112,6 +112,21 @@ h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
 .links a{background:var(--surf2);border-radius:12px;padding:10px 12px;text-decoration:none;color:var(--ink);display:grid;gap:2px}
 .links a b{font-size:14px}.links a span{font-size:12px;color:var(--mute)}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.rform{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.rform .w2{grid-column:span 2}@media (max-width:420px){.rform .w2{grid-column:1/-1}}
+.rform label{display:grid;gap:3px;font-size:12px;color:var(--mute);font-weight:600}
+.rform input,.rform select{font:500 15px var(--font);color:var(--ink);background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;min-width:0}
+.rrow{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-top:12px}
+.rrow .opt{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink2)}
+.rrow .opt input{accent-color:var(--acc);width:auto}
+.saved{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.saved .chip{display:inline-flex;align-items:center;gap:6px}
+.saved .chip small{opacity:.75;font-weight:500}
+.saved a.x{color:inherit;text-decoration:none;opacity:.6;font-weight:800;padding-left:2px}
+.atouts{display:flex;flex-wrap:wrap;gap:4px}
+.atouts span{font-size:11px;border:1px solid var(--up);color:var(--up);border-radius:6px;padding:1px 6px}
+.rsum{font-size:13px;color:var(--ink2);margin:14px 0 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.price-drop{color:var(--up);font-weight:700}
 </style>
 </head>
 <body>
@@ -134,6 +149,53 @@ h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
       <div class="kpi"><b id="kRisk" style="color:var(--down)">–</b><span>suspectes écartées</span></div>
       <div class="kpi"><b id="kNew">–</b><span>nouvelles au dernier scan</span></div>
     </div>
+  </section>
+
+  <section class="card" id="recherche">
+    <div class="ctitle"><h2>Recherche ciblée</h2><span class="sub">Un modèle précis, scruté sur Leboncoin en priorité puis sur les autres sites</span></div>
+    <form class="rform" id="rForm" autocomplete="off">
+      <label>Marque<input id="rMarque" list="rMarques" placeholder="Peugeot" required></label>
+      <label>Modèle<input id="rModele" placeholder="3008"></label>
+      <label class="w2">Version / mots-clés (tous requis)<input id="rMots" placeholder="ex. hybrid, gt, 7 places"></label>
+      <label class="w2">Exclure les annonces contenant<input id="rExcl" placeholder="ex. puretech, accidenté, export"></label>
+      <label>Année min.<input id="rAnMin" type="number" min="1990" max="2030" placeholder="2020"></label>
+      <label>Année max.<input id="rAnMax" type="number" min="1990" max="2030" placeholder="–"></label>
+      <label>Km max<input id="rKm" type="number" step="5000" min="0" placeholder="100000"></label>
+      <label>Prix min. €<input id="rPMin" type="number" step="500" min="0" placeholder="–"></label>
+      <label>Prix max. €<input id="rPMax" type="number" step="500" min="0" placeholder="20000"></label>
+      <label>Carburant<select id="rFuel"><option value="">Tous</option><option value="essence">Essence</option><option value="diesel">Diesel</option><option value="hybride">Hybride</option><option value="hybride_rechargeable">Hybride rechargeable</option><option value="electrique">Électrique</option><option value="gpl">GPL</option></select></label>
+      <label>Boîte<select id="rBoite"><option value="">Toutes</option><option value="auto">Automatique</option><option value="manuelle">Manuelle</option></select></label>
+      <label>Vendeur<select id="rVend"><option value="">Tous</option><option value="particulier">Particulier</option><option value="pro">Professionnel</option></select></label>
+      <label>Puissance min. (ch)<input id="rCh" type="number" step="10" min="0" placeholder="–"></label>
+      <label>Places min.<select id="rPlaces"><option value="">Toutes</option><option value="5">5+</option><option value="7">7</option></select></label>
+      <label>Alerte si décote ≥ (%)<input id="rDec" type="number" min="-20" max="50" placeholder="0"></label>
+    </form>
+    <div class="rrow">
+      <span class="sortl">Pays (AutoScout24)</span>
+      <label class="opt"><input type="checkbox" class="rPays" value="F" checked>France</label>
+      <label class="opt"><input type="checkbox" class="rPays" value="B" checked>Belgique</label>
+      <label class="opt"><input type="checkbox" class="rPays" value="L" checked>Luxembourg</label>
+      <label class="opt"><input type="checkbox" class="rPays" value="D" checked>Allemagne</label>
+      <label class="opt"><input type="checkbox" id="rAlerte" checked>Alertes Telegram</label>
+    </div>
+    <div class="rrow">
+      <button class="btn pri" id="rGo" type="button">Chercher</button>
+      <button class="btn" id="rFollow" type="button">Suivre et scanner toutes les heures</button>
+      <button class="btn" id="rClear" type="button">Effacer</button>
+    </div>
+    <p class="note" id="rHint" style="margin-top:10px">« Chercher » filtre tout de suite les annonces déjà relevées par le radar et prépare les liens filtrés vers chaque site. « Suivre » enregistre la recherche dans ton dépôt GitHub (tu valides avec « Commit changes ») : AutoScout24 est scanné aussitôt puis toutes les heures, et Leboncoin à chaque passage du scan sur ton PC.</p>
+    <div class="saved" id="rSaved"></div>
+    <div id="rOut" hidden>
+      <div class="rsum"><span id="rSum"></span>
+        <div class="tools"><label class="opt sortl"><input type="checkbox" id="rLbcFirst" checked style="accent-color:var(--acc)"> Leboncoin d'abord</label>
+          <label class="opt sortl"><input type="checkbox" id="rSafe" style="accent-color:var(--acc)"> Masquer les suspectes</label>
+          <select id="rTri"><option value="fiab">Les plus fiables</option><option value="decote">Meilleure affaire</option><option value="prix">Prix croissant</option><option value="km">Km le plus bas</option><option value="annee">Plus récente</option><option value="recent">Dernières vues</option></select></div>
+      </div>
+      <div class="deals" id="rRes"></div>
+      <h2 style="margin:18px 0 10px;font-size:15px">Ouvrir la même recherche sur chaque site</h2>
+      <div class="links" id="rLinks"></div>
+    </div>
+    <datalist id="rMarques"></datalist>
   </section>
 
   <section class="card">
@@ -211,12 +273,14 @@ h2{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
 </main>
 
 <script src="auto-fiches.js"></script>
+<script src="auto-recherche.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 const eur=n=>isFinite(n)?Math.round(n).toLocaleString('fr-FR')+' €':'–';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const store={get(k,d){try{const v=localStorage.getItem('auto.'+k);return v?JSON.parse(v):d}catch(_){return d}},set(k,v){try{localStorage.setItem('auto.'+k,JSON.stringify(v))}catch(_){}}};
-const SIGNALS=[['etranger','Vendeur à l’étranger ou « en mutation »',25],['acompte','Demande d’acompte avant visite',35],['pasvisite','Refuse la visite ou l’essai',25],['horsplateforme','Veut passer par WhatsApp / e-mail',15],['photos','Photos génériques ou incohérentes',15],['docs','Pas de carte grise ni de VIN visibles',15],['km','Kilométrage incohérent',15],['urgent','« Urgent » + prix cassé',10],['prixanormal','Prix jugé anormalement bas par le site',30],['appat','Prix affiché = mensualité ou apport',45]];
+const SIGNALS=[['etranger','Vendeur à l’étranger ou « en mutation »',25],['acompte','Demande d’acompte avant visite',35],['pasvisite','Refuse la visite ou l’essai',25],['horsplateforme','Veut passer par WhatsApp / e-mail',15],['photos','Peu de photos ou photos douteuses',15],['docs','Pas de carte grise ni de VIN visibles',15],['km','Kilométrage incohérent',15],['urgent','« Urgent » + prix cassé',10],['prixanormal','Prix jugé anormalement bas par le site',30],['appat','Prix affiché = mensualité ou apport',45],['sinistre','Véhicule déclaré endommagé',30]];
+const ATOUTS={histovec:'Rapport Histovec public',ct:'CT valide',garantie:'Garantie',carnet:'Carnet / factures',premieremain:'Première main',vendeurnote:'Vendeur bien noté',prixas24:'Bon prix selon AutoScout24',pro:'Vendeur pro'};
 const SRC={particulier:'Particulier FR',pro:'Pro FR',encheres:'Enchères',lld:'Fin de LLD',import:'Import'};
 let cfg=Object.assign({seuil:30,budget:15000,annee:2022,kmmax:100000,mois:18,taux:12,famille:true},store.get('cfg',{}));
 let hidden=new Set(store.get('hidden',[])); let filter='all'; let data={deals:[]};
@@ -304,13 +368,82 @@ function links(){const {budget:b,annee:a,kmmax:k}=cfg;const L=[
  ['Histovec','https://histovec.interieur.gouv.fr/','Historique officiel']];
  $('#links').innerHTML=L.map(([n,u,s])=>`<a href="${u}" target="_blank" rel="noopener"><b>${n}</b><span>${s}</span></a>`).join('');}
 
+// ── Recherche ciblée
+let rech={annonces:[],recherches:[],stats:{}}; let rCur=null; let rPending=[];
+const MARQUES=['Abarth','Alfa Romeo','Audi','BMW','BYD','Citroen','Cupra','Dacia','DS','Fiat','Ford','Honda','Hyundai','Jeep','Kia','Land Rover','Lexus','Lynk & Co','Mazda','Mercedes-Benz','MG','Mini','Mitsubishi','Nissan','Opel','Peugeot','Polestar','Porsche','Renault','Seat','Skoda','Smart','Subaru','Suzuki','Tesla','Toyota','Volkswagen','Volvo'];
+$('#rMarques').innerHTML=MARQUES.map(m=>`<option value="${m}">`).join('');
+const RF={marque:'rMarque',modele:'rModele',motsCles:'rMots',exclure:'rExcl',anneeMin:'rAnMin',anneeMax:'rAnMax',kmMax:'rKm',prixMin:'rPMin',prixMax:'rPMax',carburant:'rFuel',boite:'rBoite',vendeur:'rVend',chMin:'rCh',placesMin:'rPlaces',alerteDecote:'rDec'};
+function rRead(){const r={};for(const [k,id] of Object.entries(RF)){const v=$('#'+id).value.trim();if(v!=='')r[k]=$('#'+id).type==='number'||k==='placesMin'?+v:v;}
+  r.pays=[...document.querySelectorAll('.rPays:checked')].map(i=>i.value).join(',')||'F';r.alerte=$('#rAlerte').checked;return r;}
+function rFill(r){for(const [k,id] of Object.entries(RF))$('#'+id).value=r[k]??'';const P=(r.pays||'F,B,L,D').split(',');document.querySelectorAll('.rPays').forEach(i=>i.checked=P.includes(i.value));$('#rAlerte').checked=r.alerte!==false;}
+function rAd(d){return {...d,boite:d.boite||'',ch:d.ch||0};}
+function rPool(){const m=new Map();for(const d of [...(rech.annonces||[]),...(data.deals||[])])if(d&&d.id&&!m.has(d.id))m.set(d.id,d);return [...m.values()];}
+function rScore(d){const c=calc(d);const at=(d.atouts||[]).length;return {c,at,fiab:Math.max(0,Math.min(100,85-c.risk+at*5))};}
+function rCard(d){const s=rScore(d),c=s.c;const [cls,lab]=pill(c.risk);const has=+d.cote>0;const col=c.risk>=50?'var(--down)':has&&c.dec>=cfg.seuil?'var(--up)':has&&c.dec>=0?'var(--warn)':'var(--ink2)';const fm=familleFor(d.titre,d.places);
+  return `<article class="deal ${c.risk>=50?'risky':has&&c.dec>=cfg.seuil&&c.risk<25?'hot':''}">
+  ${d.photo?`<img src="${esc(d.photo)}" alt="" loading="lazy">`:''}
+  <div class="row"><span class="meta">${d.site==='lbc'?'Leboncoin':'AutoScout24'} · ${SRC[d.source]||''} · ${esc(d.ville)}</span><span class="badge ${cls}">${lab}</span></div>
+  <h3>${esc(d.titre)}</h3>
+  <div class="meta">${d.annee||'?'} · ${(+d.km).toLocaleString('fr-FR')} km${d.carburant?' · '+esc(d.carburant):''}${d.boite?' · '+esc(d.boite):''}${d.ch?' · '+d.ch+' ch':''}${d.note?` · vendeur ${d.note}/5 (${d.avis})`:''}</div>
+  <div class="row"><span><b style="font-size:18px">${eur(d.prix)}</b>${d.ancienPrix?` <span class="price-drop">↓ ${eur(d.ancienPrix)}</span>`:''}</span><span class="badge b-acc">Fiabilité annonce ${s.fiab}/100</span></div>
+  ${has?`<div class="row"><span>Vs cote, frais compris</span><b style="color:${col};font-size:15px">${c.dec>=0?'−':'+'}${Math.abs(c.dec).toFixed(0)} %</b></div>
+  <div class="figs"><div><span>Prix + frais</span><b>${eur(c.cout)}</b></div><div><span>Cote</span><b>${eur(d.cote)}</b></div><div><span>Marge ${cfg.mois} m</span><b style="color:${c.marge>=0?'var(--up)':'var(--down)'}">${c.marge>=0?'+':''}${eur(c.marge)}</b></div></div>`:'<div class="meta">Pas assez d’annonces comparables pour estimer une cote.</div>'}
+  ${d.signaux&&d.signaux.length?`<div class="signals">${d.signaux.map(x=>`<span>${esc((SIGNALS.find(y=>y[0]===x)||[,x])[1])}</span>`).join('')}</div>`:''}
+  ${d.atouts&&d.atouts.length?`<div class="atouts">${d.atouts.map(x=>`<span>${esc(ATOUTS[x]||x)}</span>`).join('')}</div>`:''}
+  ${familleBadge(fm)?`<div class="row" style="justify-content:flex-start">${familleBadge(fm)}<span class="meta">${esc(fm.n)}</span></div>`:''}
+  ${ficheHTML(d.titre,false)}
+  <div class="meta">${[d.site==='lbc'&&d.coteMin?'Cote : estimation Leboncoin '+eur(d.coteMin)+' – '+eur(d.coteMax):d.site==='as24'&&has?'Cote : annonces comparables AutoScout24':'',d.vuLe||d.detecteLe?'vue le '+new Date(d.vuLe||d.detecteLe).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''].filter(Boolean).join(' · ')}</div>
+  <div class="actions"><a class="btn pri" href="${esc(d.url)}" target="_blank" rel="noopener">Voir l'annonce</a></div>
+  </article>`;}
+function rRun(r){
+  if(!r||!(r.marque||r.modele)){$('#rHint').textContent='Indique au moins la marque ou le modèle.';return;}
+  rCur=r;store.set('rech',r);
+  const L=rPool().map(rAd).filter(d=>matchRech(r,d)).filter(d=>!$('#rSafe').checked||calc(d).risk<25);
+  const lf=$('#rLbcFirst').checked,t=$('#rTri').value;
+  const cmp={fiab:(a,b)=>rScore(b).fiab-rScore(a).fiab||a.prix-b.prix,decote:(a,b)=>calc(b).dec-calc(a).dec,prix:(a,b)=>a.prix-b.prix,km:(a,b)=>a.km-b.km,annee:(a,b)=>(b.annee||0)-(a.annee||0)||a.km-b.km,recent:(a,b)=>Date.parse(b.vuLe||b.detecteLe)-Date.parse(a.vuLe||a.detecteLe)}[t];
+  L.sort((a,b)=>(lf?(a.site==='lbc'?0:1)-(b.site==='lbc'?0:1):0)||((calc(a).risk>=50)-(calc(b).risk>=50))||cmp(a,b));
+  const nl=L.filter(d=>d.site==='lbc').length,sure=L.filter(d=>calc(d).risk<25).length;
+  const saved=(rech.recherches||[]).find(x=>x.id===r.id)||null;const st=saved&&rech.stats&&rech.stats[r.id];
+  $('#rSum').innerHTML=`<span><b>${L.length}</b> annonce${L.length>1?'s':''} · ${nl} Leboncoin · ${L.length-nl} AutoScout24 · <b style="color:var(--up)">${sure}</b> sans signal d’alerte${st?` · scan Leboncoin ${st.lbcLe?new Date(st.lbcLe).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'}):'en attente'}`:''}</span>`;
+  $('#rRes').innerHTML=L.length?L.slice(0,120).map(rCard).join(''):`<div class="empty"><b>${saved?'Rien pour l’instant':'Aucune annonce déjà relevée pour ce modèle'}</b>${saved?'Le prochain scan remplira cette liste.':'Clique « Suivre et scanner » pour lancer un vrai balayage de Leboncoin et AutoScout24, ou ouvre les liens ci-dessous.'}</div>`;
+  $('#rLinks').innerHTML=rechLinks(r).map(([n,u,s])=>`<a href="${esc(u)}" target="_blank" rel="noopener"><b>${n}</b><span>${s}</span></a>`).join('');
+  $('#rOut').hidden=false;
+}
+function rSaved(){
+  const all=[...(rech.recherches||[])];for(const p of rPending)if(!all.some(x=>x.id===p.id))all.push({...p,_attente:true});
+  $('#rSaved').innerHTML=all.length?'<span class="sortl" style="align-self:center">Mes recherches suivies :</span>'+all.map(r=>{const n=rPool().filter(d=>matchRech(r,rAd(d))).length;
+    return `<span class="chip" data-r="${esc(r.id)}" aria-pressed="${rCur&&rCur.id===r.id}" role="button" tabindex="0">${esc(r.nom||r.id)} <small>${r._attente?'1er scan en cours':n+' annonces'}</small><a class="x" href="https://github.com/${RECH_REPO}/delete/main/recherches/${encodeURIComponent(r.id)}.json" target="_blank" rel="noopener" title="Arrêter de suivre (supprimer sur GitHub)">×</a></span>`;}).join(''):'';
+}
+$('#rSaved').addEventListener('click',e=>{if(e.target.closest('a.x'))return;const c=e.target.closest('[data-r]');if(!c)return;const id=c.dataset.r;const r=(rech.recherches||[]).find(x=>x.id===id)||rPending.find(x=>x.id===id);if(r){rFill(r);rRun(r);rSaved();}});
+$('#rGo').addEventListener('click',()=>{const r=rRead();const same=rCur&&rCur.id&&JSON.stringify({...rCur,id:0,nom:0})===JSON.stringify({...r,id:0,nom:0});if(same)r.id=rCur.id,r.nom=rCur.nom;rRun(r);rSaved();});
+$('#rForm').addEventListener('submit',e=>{e.preventDefault();$('#rGo').click();});
+$('#rForm').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#rGo').click();}});
+['rLbcFirst','rSafe','rTri'].forEach(id=>$('#'+id).addEventListener('change',()=>rCur&&rRun(rCur)));
+$('#rClear').addEventListener('click',()=>{rFill({});rCur=null;store.set('rech',null);$('#rOut').hidden=true;rSaved();});
+$('#rFollow').addEventListener('click',()=>{
+  const r=rRead();if(!(r.marque||r.modele)){$('#rHint').textContent='Indique au moins la marque ou le modèle.';return;}
+  const o=rechClean(r);rPending.push({...o,_t:Date.now()});store.set('rPending',rPending);
+  const url=`https://github.com/${RECH_REPO}/new/main?filename=${encodeURIComponent('recherches/'+o.id+'.json')}&value=${encodeURIComponent(JSON.stringify(o,null,2)+'\n')}&message=${encodeURIComponent('Recherche : '+o.nom)}`;
+  window.open(url,'_blank','noopener');
+  $('#rHint').innerHTML='GitHub s’ouvre avec la recherche prête : clique <b>Commit changes</b>. Le scan AutoScout24 démarre aussitôt (quelques minutes), Leboncoin au prochain passage du scan sur ton PC.';
+  rCur=o;rRun(o);rSaved();
+});
+function rechInit(){
+  rPending=(store.get('rPending',[])||[]).filter(p=>!(rech.recherches||[]).some(x=>x.id===p.id)&&Date.now()-(p._t||0)<864e5*3);store.set('rPending',rPending);
+  rSaved();const last=store.get('rech',null);
+  const h=location.hash.slice(1);const fromHash=h&&(rech.recherches||[]).find(x=>x.id===h);
+  if(fromHash){rFill(fromHash);rRun(fromHash);}else if(last){rFill(last);rRun(last);}else if((rech.recherches||[]).length){rFill(rech.recherches[0]);rRun(rech.recherches[0]);}
+  rSaved();
+}
+
 applyCfg();verdict();links();
-Promise.all(['data/auto.json','data/lbc-all.json'].map(u=>fetch(u+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null))).then(([a,l])=>{
+Promise.all(['data/auto.json','data/lbc-all.json','data/rech.json'].map(u=>fetch(u+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null))).then(([a,l,rj])=>{
+  rech=rj||{annonces:[],recherches:[],stats:{}};
   data={deals:[...((a&&a.deals)||[]),...((l&&l.deals)||[])],stats:a&&a.stats};
   const hh=t=>new Date(t).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'});
   const parts=[];if(a)parts.push('AutoScout24 '+hh(a.updated));if(l)parts.push('Leboncoin '+hh(l.lot||l.updated));
   $('#scanInfo').textContent=parts.length?'Scans : '+parts.join(' · '):'Premier scan en attente';
-  render();
+  render();rechInit();
 });
 </script>
 </body>
