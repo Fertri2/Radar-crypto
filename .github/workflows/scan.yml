@@ -6,7 +6,7 @@ on:
   workflow_dispatch:        # bouton « Run workflow » pour lancer un scan à la main
   push:
     branches: [main]
-    paths-ignore: ['site/data/lbc.json']
+    paths-ignore: ['site/data/lbc.json', 'recherches/**']
 
 permissions:
   contents: read
@@ -35,7 +35,7 @@ jobs:
           TG_CHAT: ${{ secrets.TG_CHAT }}
       - name: Garder les données auto déjà publiées
         run: |
-          for f in auto lbc-all; do curl -fsSL "https://fertri2.github.io/Radar-crypto/data/$f.json?t=$(date +%s)" -o "site/data/$f.json" || rm -f "site/data/$f.json"; done
+          for f in auto lbc-all rech; do curl -fsSL "https://fertri2.github.io/Radar-crypto/data/$f.json?t=$(date +%s)" -o "site/data/$f.json" || rm -f "site/data/$f.json"; done
           node lbc-alert.mjs
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
