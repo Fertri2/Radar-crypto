@@ -100,12 +100,12 @@
         <p class="note" style="margin-top:6px">Calculé sur ton carnet tendance (${fe(tot)} aujourd’hui) + ${fe(trW)} versés cette semaine. La poche vend quand les feux s’éteignent : c’est voulu.</p>`; }
     // poche accumulation
     let acH = '<p class="note">Chargement des prix…</p>';
-    if (K.BTC && K.ETH) { const avail = AS.res + acW; let left = avail;
-      const rows = ['BTC', 'ETH'].map(a => { const X = K[a], z = ZONES[X.zone]; const want = acW / 2 * z.m; const amt = Math.max(0, Math.min(want, left)); left -= amt;
-        return { a, X, z, amt, want }; });
+    if (K.BTC && K.ETH) { const avail = Math.max(0, AS.res + acW);
+      const rows = ['BTC', 'ETH'].map(a => { const X = K[a], z = ZONES[X.zone]; return { a, X, z, want: acW / 2 * z.m }; });
+      const need = rows.reduce((s, r) => s + r.want, 0), k = need > avail ? avail / need : 1; rows.forEach(r => r.amt = r.want * k); let left = avail - rows.reduce((s, r) => s + r.amt, 0);
       acH = rows.map(r => `<div class="be-act ${r.amt > 0 ? 'be-buy' : 'be-hold'}"><span>Acheter ${r.a} · ${r.z.t} (×${String(r.z.m).replace('.', ',')})</span><b>${fe(r.amt)} ≈ ${fq(r.amt * f / r.X.p)} ${r.a}</b></div>`).join('') +
         `<div class="be-act be-hold"><span>Réserve en stablecoin après achats</span><b>${fe(left)}</b></div>
-        <p class="note" style="margin-top:6px">${rows.map(r => `${r.a} : ${fpc(r.X.dd * 100, 0)} sous son record, zone « ${r.z.t} ».`).join(' ')}${rows.some(r => r.amt < r.want - 1) ? ' La réserve ne suffit pas pour le multiplicateur complet : on achète ce qu’elle permet.' : ''} Cette poche ne vend jamais.</p>`;
+        <p class="note" style="margin-top:6px">${rows.map(r => `${r.a} : ${fpc(r.X.dd * 100, 0)} sous son record, zone « ${r.z.t} ».`).join(' ')}${k < 1 ? ` La réserve ne couvre pas tout le multiplicateur : les achats sont réduits à ce qu’elle permet (${Math.round(k * 100)} %). Elle se reconstitue quand les prix remontent.` : ''} Cette poche ne vend jamais.</p>`;
       box._acc = rows; }
     box.innerHTML = head + set + `<div style="margin-top:6px">
       <div class="be-step"><span class="be-n">1</span><div style="flex:1;min-width:0"><b>Verser ${fe(P.wk)} sur OKX</b><div class="mute" style="font-size:13px">En euros, puis conversion en stablecoin (USDC), sans « Earn ».</div></div></div>
