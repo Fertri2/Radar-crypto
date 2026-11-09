@@ -530,5 +530,6 @@ nav();
 fetch('data/signals.json?t='+Date.now()).then(r=>r.json()).then(d=>{S.data=d;render()}).catch(()=>{$('#mission').innerHTML=`<div class="ico o">${I.bell}</div><div><div class="t">Données indisponibles</div><div class="s">Le scan n’a pas encore tourné ou a échoué. Réessaie dans quelques minutes.</div></div>`;$('#scanInfo').textContent=''});
 </script>
 <script src="app2.js"></script>
+<script src="btceth.js"></script>
 </body>
 </html>
