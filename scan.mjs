@@ -427,6 +427,23 @@ async function telegram(out, T, TR, RO) {
   return r.ok ? 'envoyée' : 'échec HTTP ' + r.status;
 }
 
+// titres de la nuit (flux RSS publics), filtrés sur BTC, ETH et la macro
+async function news() {
+  const FEEDS = [['https://www.coindesk.com/arc/outboundfeeds/rss/', 'CoinDesk'], ['https://cointelegraph.com/rss', 'Cointelegraph'], ['https://decrypt.co/feed', 'Decrypt']]; const out = [];
+  const clean = v => v.replace(/<!\[CDATA\[|\]\]>/g, '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#0?39;|&#8217;|&rsquo;/g, '’').replace(/&quot;|&#8220;|&#8221;/g, '"').trim();
+  for (const [u, src] of FEEDS) {
+    try {
+      const r = await fetch(u, { headers: { 'user-agent': 'Mozilla/5.0' } }); if (!r.ok) continue; const x = await r.text();
+      for (const m of x.matchAll(/<item[\s>]([\s\S]*?)<\/item>/g)) {
+        const it = m[1]; const g = t => { const mm = it.match(new RegExp('<' + t + '[^>]*>([\\s\\S]*?)</' + t + '>')); return mm ? clean(mm[1]) : ''; };
+        const title = g('title'), link = g('link'), d = Date.parse(g('pubDate'));
+        if (title && link && /bitcoin|btc|ether|\beth\b|etf|\bfed\b|crypto market/i.test(title)) out.push({ title, link, src, d: isNaN(d) ? 0 : d });
+      }
+    } catch (e) { /* source suivante */ }
+  }
+  out.sort((a, b) => b.d - a.d); return { at: new Date().toISOString(), items: out.slice(0, 12) };
+}
+
 async function main() {
   const errors = [];
   const tick = await get('/api/v3/ticker/24hr');
@@ -505,6 +522,7 @@ async function main() {
     if (/illisible/.test(e.message)) { console.error(e.message); process.exit(1); }
     errors.push('Portefeuille témoin : ' + e.message); out.errors = errors.slice(0, 20);
   }
+  try { writeFileSync('site/data/news.json', JSON.stringify(await news())); } catch (e) { errors.push('Actualité : ' + e.message); }
   writeFileSync('site/data/signals.json', JSON.stringify(out));
   console.log('Alerte Telegram : ' + tg);
   console.log(`OK · marché ${coins.length} · éligibles ${tradable.length} · BTC ${btc.on ? 'au-dessus' : 'sous'} MM100 · ${sig.length} signal(s) · ${near.length} proche(s) · OKX ${okx ? 'vérifié' : 'non vérifié'} · actions ${stk ? stk.count + ' lues, ' + stk.list.length + ' retenues' : 'indisponibles'} · ${errors.length} erreur(s)`);
